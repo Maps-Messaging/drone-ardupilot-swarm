@@ -1,0 +1,7 @@
+# This file is not installed automatically because the ground controller
+# address belongs to the deployment, not the build.
+
+[UdpEndpoint ground-controller]
+Mode = Normal
+Address = 192.0.2.10
+Port = 14550

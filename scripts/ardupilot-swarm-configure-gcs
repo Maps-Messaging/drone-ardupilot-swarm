@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+GCS_CONFIG="/etc/mavlink-router/config.d/90-ground-controller.conf"
+ROUTER_SERVICE="mavlink-router.service"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  sudo ardupilot-swarm-configure-gcs ADDRESS [PORT]
+  sudo ardupilot-swarm-configure-gcs --show
+  sudo ardupilot-swarm-configure-gcs --remove
+
+PORT defaults to 14550.
+USAGE
+}
+
+require_root() {
+  if [[ ${EUID} -ne 0 ]]; then
+    echo "This command must be run with sudo." >&2
+    exit 1
+  fi
+}
+
+restart_router() {
+  systemctl restart "${ROUTER_SERVICE}"
+  systemctl --no-pager --full status "${ROUTER_SERVICE}" | sed -n '1,8p'
+}
+
+require_root
+
+case "${1:-}" in
+  --show)
+    if [[ -f "${GCS_CONFIG}" ]]; then
+      cat "${GCS_CONFIG}"
+    else
+      echo "Ground controller is not configured."
+    fi
+    exit 0
+    ;;
+  --remove)
+    rm -f "${GCS_CONFIG}"
+    restart_router
+    echo "Ground controller endpoint removed."
+    exit 0
+    ;;
+  -h|--help|"")
+    usage
+    exit 0
+    ;;
+esac
+
+ADDRESS="$1"
+PORT="${2:-14550}"
+
+if [[ ! "${ADDRESS}" =~ ^[A-Za-z0-9._:%\[\]-]+$ ]]; then
+  echo "Invalid ground controller address: ${ADDRESS}" >&2
+  exit 1
+fi
+
+if [[ ! "${PORT}" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
+  echo "Invalid UDP port: ${PORT}" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "${GCS_CONFIG}")"
+TEMP_FILE="$(mktemp)"
+trap 'rm -f "${TEMP_FILE}"' EXIT
+
+cat > "${TEMP_FILE}" <<EOF_CONFIG
+# Managed by ardupilot-swarm-configure-gcs.
+
+[UdpEndpoint ground-controller]
+Mode = Normal
+Address = ${ADDRESS}
+Port = ${PORT}
+EOF_CONFIG
+
+install -m 0644 -o root -g root "${TEMP_FILE}" "${GCS_CONFIG}"
+restart_router
+
+echo "Ground controller configured at ${ADDRESS}:${PORT}."

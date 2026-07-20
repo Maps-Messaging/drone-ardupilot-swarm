@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+CONFIG_FILE="/etc/ardupilot-swarm/ardupilot-swarm.conf"
+
+if [[ ! -r "${CONFIG_FILE}" ]]; then
+  echo "Missing configuration file: ${CONFIG_FILE}" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "${CONFIG_FILE}"
+
+SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
+
+export HOME="${RUN_HOME}"
+export PATH="${RUN_HOME}/.local/bin:${ARDUPILOT_DIR}/Tools/autotest:${PATH}"
+
+if [[ ! -d "${ARDUPILOT_DIR}" ]]; then
+  echo "Missing ArduPilot directory: ${ARDUPILOT_DIR}" >&2
+  exit 1
+fi
+
+if [[ ! -f "${SIM_VEHICLE}" ]]; then
+  echo "Missing ArduPilot simulator launcher: ${SIM_VEHICLE}" >&2
+  exit 1
+fi
+
+if [[ ! -r "${PARAM_FILE}" ]]; then
+  echo "Missing or unreadable ArduPilot parameter file: ${PARAM_FILE}" >&2
+  echo "Install it with: sudo ardupilot-swarm-install-parameters /path/to/file.parm" >&2
+  exit 1
+fi
+
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "tmux is not installed or is not available in PATH" >&2
+  exit 1
+fi
+
+if tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
+  echo "ArduPilot swarm is already running in tmux session: ${SESSION_NAME}"
+  exit 0
+fi
+
+command=(
+  "${SIM_VEHICLE}"
+  -v ArduPlane
+  --no-rebuild
+  --instance "${INSTANCE}"
+  --sysid "${SYSTEM_ID}"
+)
+
+if [[ "${WIPE_PARAMETERS}" == "true" ]]; then
+  command+=(-w)
+fi
+
+command+=(
+  "--add-param-file=${PARAM_FILE}"
+  "--custom-location=${HOME_LAT},${HOME_LON},${HOME_ALT},${HOME_HEADING}"
+  "--out=udp:${ROUTER_ADDRESS}:${ROUTER_PORT}"
+)
+
+printf -v tmux_command '%q ' "${command[@]}"
+
+tmux new-session \
+  -d \
+  -s "${SESSION_NAME}" \
+  -n "${WINDOW_NAME}" \
+  -c "${ARDUPILOT_DIR}" \
+  "${tmux_command}"
+
+echo "ArduPilot swarm started in tmux session: ${SESSION_NAME}"
+echo "Parameters loaded from: ${PARAM_FILE}"
+echo "MAVLink output: udp:${ROUTER_ADDRESS}:${ROUTER_PORT}"
+echo "Attach with: tmux attach -t ${SESSION_NAME}"

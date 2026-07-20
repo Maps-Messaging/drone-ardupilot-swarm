@@ -1,0 +1,29 @@
+# Installed as /etc/ardupilot-swarm/ardupilot-swarm.conf.
+# Shell syntax is used because the start and maintenance scripts source this file.
+
+RUN_USER="@RUN_USER@"
+RUN_GROUP="@RUN_GROUP@"
+RUN_HOME="@RUN_HOME@"
+
+ARDUPILOT_REPOSITORY="https://github.com/ArduPilot/ardupilot.git"
+ARDUPILOT_REF="@ARDUPILOT_REF@"
+ARDUPILOT_DIR="@ARDUPILOT_DIR@"
+ARDUPILOT_BUILD_TARGET="plane"
+
+PARAM_FILE="/etc/ardupilot-swarm/drone.parm"
+
+SESSION_NAME="drone-swarm"
+WINDOW_NAME="drone-swarm"
+
+INSTANCE="10"
+SYSTEM_ID="1"
+ROUTER_ADDRESS="127.0.0.1"
+ROUTER_PORT="14480"
+
+HOME_LAT="59.4673"
+HOME_LON="24.8283"
+HOME_ALT="0.1"
+HOME_HEADING="0"
+
+# The supplied parameter file is reapplied on every start.
+WIPE_PARAMETERS="true"

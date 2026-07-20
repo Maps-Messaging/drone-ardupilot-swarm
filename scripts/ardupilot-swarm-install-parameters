@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+CONFIG_FILE="/etc/ardupilot-swarm/ardupilot-swarm.conf"
+RESTART=false
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  sudo ardupilot-swarm-install-parameters SOURCE_FILE [--restart]
+USAGE
+}
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "This command must be run with sudo." >&2
+  exit 1
+fi
+
+if [[ ! -r "${CONFIG_FILE}" ]]; then
+  echo "Missing configuration file: ${CONFIG_FILE}" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "${CONFIG_FILE}"
+
+SOURCE_FILE="${1:-}"
+if [[ -z "${SOURCE_FILE}" || "${SOURCE_FILE}" == "-h" || "${SOURCE_FILE}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ "${2:-}" == "--restart" ]]; then
+  RESTART=true
+elif [[ -n "${2:-}" ]]; then
+  usage >&2
+  exit 1
+fi
+
+if [[ ! -f "${SOURCE_FILE}" || ! -s "${SOURCE_FILE}" ]]; then
+  echo "Parameter file does not exist or is empty: ${SOURCE_FILE}" >&2
+  exit 1
+fi
+
+install -d -m 0750 -o root -g "${RUN_GROUP}" "$(dirname "${PARAM_FILE}")"
+install -m 0640 -o root -g "${RUN_GROUP}" "${SOURCE_FILE}" "${PARAM_FILE}"
+
+echo "Installed parameter file: ${PARAM_FILE}"
+
+if [[ "${RESTART}" == "true" ]]; then
+  systemctl restart ardupilot-swarm.service
+  echo "Restarted ardupilot-swarm.service"
+fi

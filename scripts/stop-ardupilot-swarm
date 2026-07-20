@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+CONFIG_FILE="/etc/ardupilot-swarm/ardupilot-swarm.conf"
+
+if [[ ! -r "${CONFIG_FILE}" ]]; then
+  echo "Missing configuration file: ${CONFIG_FILE}" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "${CONFIG_FILE}"
+
+export HOME="${RUN_HOME}"
+
+if tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
+  tmux kill-session -t "${SESSION_NAME}"
+  echo "Stopped ArduPilot swarm tmux session: ${SESSION_NAME}"
+else
+  echo "ArduPilot swarm tmux session is not running: ${SESSION_NAME}"
+fi

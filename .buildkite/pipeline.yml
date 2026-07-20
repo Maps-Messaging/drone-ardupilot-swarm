@@ -1,0 +1,10 @@
+steps:
+  - label: ":shell: Validate"
+    command: "make validate"
+
+  - wait
+
+  - label: ":package: Build distribution"
+    command: "make dist"
+    artifact_paths:
+      - "dist/*"

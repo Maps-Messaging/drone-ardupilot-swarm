@@ -1,0 +1,7 @@
+# Managed by the ardupilot-swarm installer.
+# ArduPilot/MAVProxy sends the drone stream to this local endpoint.
+
+[UdpEndpoint drone]
+Mode = Server
+Address = @ROUTER_ADDRESS@
+Port = @ROUTER_PORT@
