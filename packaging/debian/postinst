@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+if [ "${1:-}" = "configure" ]; then
+  cat <<'MESSAGE'
+ArduPilot swarm management tools are installed.
+
+Run the host installer as the account that will own and run ArduPilot:
+
+  ardupilot-swarm-install
+
+The installer clones and builds ArduPilot, installs the runtime scripts and
+systemd unit, and configures the local mavlink-router endpoint.
+MESSAGE
+fi
+
+exit 0

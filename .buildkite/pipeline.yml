@@ -4,7 +4,18 @@ steps:
 
   - wait
 
-  - label: ":package: Build distribution"
-    command: "make dist"
+  - label: ":debian: Build Debian package"
+    command: "make deb"
     artifact_paths:
-      - "dist/*"
+      - "dist/*.deb"
+      - "dist/*.deb.sha256"
+
+  - wait
+
+  - label: ":nexus: Publish Debian package"
+    if: build.branch == "main" || build.tag != null
+    commands:
+      - 'buildkite-agent artifact download "dist/*.deb" .'
+      - 'export NEXUS_USER="$(buildkite-agent secret get NEXUS_USER)"'
+      - 'export NEXUS_PASSWORD="$(buildkite-agent secret get NEXUS_PASSWORD)"'
+      - './packaging/upload-deb.sh maps-drone-repo'

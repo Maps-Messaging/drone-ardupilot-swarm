@@ -20,6 +20,15 @@ required_files=(
   scripts/ardupilot-swarm-configure-gcs
   scripts/ardupilot-swarm-install-parameters
   systemd/ardupilot-swarm.service.in
+  packaging/build-deb.sh
+  packaging/upload-deb.sh
+  packaging/debian/postinst
+  packaging/debian/copyright
+  packaging/debian/README.Debian
+  packaging/wrappers/ardupilot-swarm-install
+  packaging/wrappers/ardupilot-swarm-update
+  packaging/wrappers/ardupilot-swarm-uninstall
+  .buildkite/pipeline.yml
 )
 
 for file in "${required_files[@]}"; do
@@ -31,20 +40,42 @@ done
 
 while IFS= read -r -d '' script; do
   bash -n "${script}"
-done < <(find . -type f \( -name '*.sh' -o -path './scripts/*' -o -name 'install.sh' -o -name 'update.sh' -o -name 'uninstall.sh' \) -print0)
+done < <(
+  find . \
+    -path './build' -prune -o \
+    -path './dist' -prune -o \
+    -type f \
+    \( -name '*.sh' -o -path './scripts/*' -o -path './packaging/wrappers/*' -o -name 'install.sh' -o -name 'update.sh' -o -name 'uninstall.sh' \) \
+    -print0
+)
 
-if find . -path './dist' -prune -o -type f -name '*.parm' -print | grep -q .; then
+if find . -path './dist' -prune -o -path './build' -prune -o -type f -name '*.parm' -print | grep -q .; then
   echo "A proprietary .parm file must not be included in this project." >&2
   exit 1
 fi
 
-if grep -RniE --exclude=validate.sh --exclude-dir=.git --exclude-dir=dist 'MapsMessaging|/opt/maps|maps-' .; then
-  echo "Project contains organisation-specific naming." >&2
+if grep -RniE --exclude=validate.sh --exclude-dir=.git --exclude-dir=build --exclude-dir=dist 'stickleback' .; then
+  echo "Project contains deployment-specific naming." >&2
+  exit 1
+fi
+
+if grep -RniE \
+  --exclude=validate.sh \
+  'MapsMessaging|/opt/maps|maps-' \
+  install.sh update.sh uninstall.sh config scripts systemd; then
+  echo "Runtime installation contains organisation-specific naming." >&2
   exit 1
 fi
 
 if command -v shellcheck >/dev/null 2>&1; then
-  mapfile -d '' shell_scripts < <(find . -type f \( -name '*.sh' -o -path './scripts/*' -o -name 'install.sh' -o -name 'update.sh' -o -name 'uninstall.sh' \) -print0)
+  mapfile -d '' shell_scripts < <(
+    find . \
+      -path './build' -prune -o \
+      -path './dist' -prune -o \
+      -type f \
+      \( -name '*.sh' -o -path './scripts/*' -o -path './packaging/wrappers/*' -o -name 'install.sh' -o -name 'update.sh' -o -name 'uninstall.sh' \) \
+      -print0
+  )
   shellcheck "${shell_scripts[@]}"
 fi
 

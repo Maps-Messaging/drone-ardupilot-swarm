@@ -1,0 +1,10 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: ardupilot-swarm
+Source: local project
+
+Files: *
+Copyright: 2026 Matthew Buckton
+License: Proprietary
+ This package contains deployment and management scripts supplied for authorised
+ use. ArduPilot and mavlink-router are separate projects installed from their
+ respective upstream source and Debian packages under their own licences.

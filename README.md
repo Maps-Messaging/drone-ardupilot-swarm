@@ -1,6 +1,6 @@
 # ArduPilot Swarm Installer
 
-A standalone host installer for the ArduPilot SITL environment.
+A standalone host installer for an ArduPilot SITL drone swarm.
 
 It follows the normal installation model rather than replacing it:
 
@@ -23,18 +23,47 @@ uninstall.sh Remove project-managed files
 Makefile     Validation and source distribution
 ```
 
-## Validate and build the distribution
+## Validate and build
 
 ```bash
 make validate
 make dist
+make deb
 ```
 
-The archive is written to `dist/ardupilot-swarm-<version>.tar.gz`.
+Build outputs:
+
+```text
+dist/ardupilot-swarm-<version>.tar.gz
+dist/ardupilot-swarm_<version>_all.deb
+dist/ardupilot-swarm_<version>_all.deb.sha256
+```
+
+The Debian package contains the installer project and exposes these commands:
+
+```text
+ardupilot-swarm-install
+ardupilot-swarm-update
+ardupilot-swarm-uninstall
+```
+
+Installing the Debian package does not compile ArduPilot from a Debian maintainer script. The end user runs `ardupilot-swarm-install` as the account that will own the ArduPilot checkout and tmux session. This preserves the existing installation model and avoids building a large Git project as `root` during `apt install`.
 
 ## Install
 
-Run the installer as the account that will own and run ArduPilot. Do not invoke the installer itself with `sudo`; it requests sudo only for package and system-file operations.
+Install the locally built Debian package:
+
+```bash
+sudo apt install ./dist/ardupilot-swarm_<version>_all.deb
+```
+
+Then run the host installer as the account that will own and run ArduPilot. Do not invoke the installer itself with `sudo`; it requests sudo only for package and system-file operations.
+
+```bash
+ardupilot-swarm-install
+```
+
+When working directly from the source checkout, the equivalent command is:
 
 ```bash
 ./install.sh
@@ -68,7 +97,7 @@ The installer enables `ardupilot-swarm.service` but does not start it on the fir
 
 ## Supply the parameter file
 
-The file is obtained through the company’s normal secure delivery mechanism and copied into place by the end user:
+The deployment-specific parameter file is supplied separately and copied into place by the end user:
 
 ```bash
 sudo ardupilot-swarm-install-parameters /path/to/drone.parm
@@ -170,7 +199,13 @@ After changing the local router address or port, rerun the updater so the router
 
 ## Update
 
-Run from an updated checkout of this project as the same account that owns the ArduPilot source tree:
+After upgrading the Debian package, run the updater as the same account that owns the ArduPilot source tree:
+
+```bash
+ardupilot-swarm-update
+```
+
+When working directly from the source checkout, the equivalent command is:
 
 ```bash
 ./update.sh
@@ -197,6 +232,12 @@ Refresh the upstream build prerequisites when required:
 Remove only project-managed service, commands and router endpoints:
 
 ```bash
+ardupilot-swarm-uninstall
+```
+
+When working directly from the source checkout, the equivalent command is:
+
+```bash
 ./uninstall.sh
 ```
 
@@ -209,3 +250,29 @@ Remove those as well:
 ```
 
 The `mavlink-router` package itself is not removed because it remains an independent installation.
+
+## Publish to Nexus
+
+The release target uploads the Debian package to the hosted Nexus APT repository. Credentials are supplied through the existing Buildkite secrets and are never written into the project.
+
+```bash
+export NEXUS_USER="$(buildkite-agent secret get NEXUS_USER)"
+export NEXUS_PASSWORD="$(buildkite-agent secret get NEXUS_PASSWORD)"
+make release
+```
+
+The default repository is:
+
+```text
+maps-drone-repo
+```
+
+Override it when required:
+
+```bash
+make release NEXUS_REPOSITORY=another-apt-repository
+```
+
+The upload script searches Nexus for the same package name and version, deletes matching components, accepts HTTP `204` as a successful deletion, and uploads the new `.deb` through the hosted APT repository endpoint.
+
+Buildkite validates every build and creates the Debian artifacts. Publication runs automatically for `main` builds and tagged builds.

@@ -1,5 +1,5 @@
 # Managed by the ardupilot-swarm installer.
-# ArduPilot/MAVProxy sends the drone stream to this local endpoint.
+# ArduPilot sends the drone MAVLink stream to this local endpoint.
 
 [UdpEndpoint drone]
 Mode = Server

@@ -1,5 +1,5 @@
 [Unit]
-Description=ArduPilot swarm
+Description=ArduPilot drone swarm
 Wants=network-online.target mavlink-router.service
 After=network-online.target mavlink-router.service
 

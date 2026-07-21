@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0
+
+- Added Debian package generation for the standalone host installer.
+- Added installed `ardupilot-swarm-install`, `ardupilot-swarm-update`, and `ardupilot-swarm-uninstall` commands.
+- Added Nexus APT publication with replacement of an existing matching package version.
+- Added Buildkite Debian build artifacts and release publication to `maps-drone-repo`.
+- Kept ArduPilot compilation outside Debian maintainer scripts so it runs as the selected runtime user.
+
+## 0.1.1
+
+- Replaced deployment-specific vehicle naming with generic drone naming.
+- Renamed the default parameter file to `/etc/ardupilot-swarm/drone.parm`.
+- Renamed the tmux window and MAVLink router endpoint to `drone`.
+- Added validation to reject deployment-specific naming.
+
 ## 0.1.0
 
 - Added idempotent host installer and updater.

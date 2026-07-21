@@ -1,0 +1,33 @@
+ardupilot-swarm
+================
+
+This package installs the standalone ArduPilot swarm host management tools.
+
+Run the host installer as the account that will own and run ArduPilot:
+
+  ardupilot-swarm-install
+
+The installer:
+
+* clones or updates the upstream ArduPilot repository;
+* installs the normal ArduPilot build prerequisites;
+* builds ArduPlane SITL;
+* installs and configures mavlink-router;
+* installs the swarm start and stop scripts under /usr/local/bin; and
+* installs and enables ardupilot-swarm.service.
+
+The deployment-specific parameter file is not included. Install it separately:
+
+  sudo ardupilot-swarm-install-parameters /path/to/drone.parm
+
+Configure the ground controller when its address is known:
+
+  sudo ardupilot-swarm-configure-gcs ADDRESS 14550
+
+Start the swarm:
+
+  sudo systemctl start ardupilot-swarm.service
+
+Updates are applied as the ArduPilot runtime user:
+
+  ardupilot-swarm-update

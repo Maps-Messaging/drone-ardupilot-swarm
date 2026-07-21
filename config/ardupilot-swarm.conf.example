@@ -12,8 +12,8 @@ ARDUPILOT_BUILD_TARGET="plane"
 
 PARAM_FILE="/etc/ardupilot-swarm/drone.parm"
 
-SESSION_NAME="drone-swarm"
-WINDOW_NAME="drone-swarm"
+SESSION_NAME="ardupilot-swarm"
+WINDOW_NAME="drone"
 
 INSTANCE="10"
 SYSTEM_ID="1"
