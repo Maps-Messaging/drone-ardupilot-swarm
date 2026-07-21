@@ -1,11 +1,15 @@
 steps:
   - label: ":shell: Validate"
-    command: "make validate"
+    commands:
+      - "chmod +x packaging/*.sh scripts/*.sh *.sh"
+      - "make validate"
 
   - wait
 
   - label: ":debian: Build Debian package"
-    command: "make deb"
+    commands:
+      - "chmod +x packaging/*.sh scripts/*.sh *.sh"
+      - "make deb"
     artifact_paths:
       - "dist/*.deb"
       - "dist/*.deb.sha256"
@@ -15,6 +19,7 @@ steps:
   - label: ":nexus: Publish Debian package"
     if: build.branch == "main" || build.tag != null
     commands:
+      - 'chmod +x packaging/upload-deb.sh'
       - 'buildkite-agent artifact download "dist/*.deb" .'
       - 'export NEXUS_USER="$(buildkite-agent secret get NEXUS_USER)"'
       - 'export NEXUS_PASSWORD="$(buildkite-agent secret get NEXUS_PASSWORD)"'
