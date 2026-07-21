@@ -9,6 +9,7 @@ required_files=(
   VERSION
   Makefile
   README.md
+  docs/mavlink-router.md
   install.sh
   update.sh
   uninstall.sh

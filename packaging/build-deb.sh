@@ -47,6 +47,7 @@ copy_project() {
   cp -a "${ROOT_DIR}/config" "${destination}/config"
   cp -a "${ROOT_DIR}/scripts" "${destination}/scripts"
   cp -a "${ROOT_DIR}/systemd" "${destination}/systemd"
+  cp -a "${ROOT_DIR}/docs" "${destination}/docs"
 
   rm -f "${destination}/scripts/validate.sh"
 }
@@ -65,9 +66,10 @@ Maintainer: ${PACKAGE_MAINTAINER}
 Installed-Size: ${installed_size}
 Depends: ${PACKAGE_DEPENDS}
 Description: ArduPilot SITL swarm host installer
- Installs the standalone management project used to clone and build ArduPilot,
- install mavlink-router, install the swarm start and stop scripts, and configure
- the systemd service. Deployment-specific GCS and parameter files remain external.
+ Installs the standalone management project used to clone and build ArduPilot.
+ Requires the separately packaged mavlink-router service, installs the swarm start
+ and stop scripts, and configures the systemd service. Deployment-specific GCS and
+ parameter files remain external.
 EOF_CONTROL
 }
 
@@ -92,6 +94,7 @@ install -m 0755 "${ROOT_DIR}/packaging/wrappers/ardupilot-swarm-uninstall" "${PA
 install -m 0755 "${ROOT_DIR}/packaging/debian/postinst" "${PACKAGE_ROOT}/DEBIAN/postinst"
 install -m 0644 "${ROOT_DIR}/packaging/debian/copyright" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/copyright"
 install -m 0644 "${ROOT_DIR}/packaging/debian/README.Debian" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/README.Debian"
+install -m 0644 "${ROOT_DIR}/docs/mavlink-router.md" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/mavlink-router.md"
 
 find "${PACKAGE_ROOT}/usr/share/ardupilot-swarm" -type d -exec chmod 0755 {} +
 find "${PACKAGE_ROOT}/usr/share/ardupilot-swarm" -type f -exec chmod 0644 {} +

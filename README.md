@@ -5,7 +5,7 @@ A standalone host installer for an ArduPilot SITL drone swarm.
 It follows the normal installation model rather than replacing it:
 
 - ArduPilot is cloned from its upstream Git repository and built in a normal working directory.
-- `mavlink-router` is installed as its own Debian/Ubuntu package.
+- `mavlink-router` is a separate upstream project and must be available as its own Debian package from a configured APT repository.
 - Router endpoints are added under `/etc/mavlink-router/config.d`.
 - Start and stop scripts are installed under `/usr/local/bin`.
 - A single systemd unit invokes those scripts.
@@ -48,6 +48,18 @@ ardupilot-swarm-uninstall
 ```
 
 Installing the Debian package does not compile ArduPilot from a Debian maintainer script. The end user runs `ardupilot-swarm-install` as the account that will own the ArduPilot checkout and tmux session. This preserves the existing installation model and avoids building a large Git project as `root` during `apt install`.
+
+## MAVLink Router prerequisite
+
+`mavlink-router` is maintained in a separate upstream repository:
+
+```text
+https://github.com/mavlink-router/mavlink-router
+```
+
+The upstream project publishes source and build instructions, but does not publish an official Debian package through its GitHub project. This package therefore expects a separately built Debian package named `mavlink-router` to be available from a configured APT repository. A manual source installation does not satisfy the Debian dependency.
+
+The recommended deployment is to build and publish `mavlink-router` independently, then publish and install `ardupilot-swarm`. The complete boundary, build notes and expected paths are documented in [`docs/mavlink-router.md`](docs/mavlink-router.md).
 
 ## Install
 

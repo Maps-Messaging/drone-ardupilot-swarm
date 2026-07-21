@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Documented MAVLink Router as a separate upstream project and Debian package dependency.
+- Added the upstream repository, source-build prerequisites, expected service/configuration paths, and package verification commands.
+- Clarified that an upstream source installation does not satisfy `Depends: mavlink-router`.
+- Documented the recommended separate MAVLink Router package and Nexus publication workflow.
+
 ## 0.2.0
 
 - Added Debian package generation for the standalone host installer.

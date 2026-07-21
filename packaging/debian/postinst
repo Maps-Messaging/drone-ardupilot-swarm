@@ -10,7 +10,9 @@ Run the host installer as the account that will own and run ArduPilot:
   ardupilot-swarm-install
 
 The installer clones and builds ArduPilot, installs the runtime scripts and
-systemd unit, and configures the local mavlink-router endpoint.
+systemd unit, and configures the local mavlink-router endpoint. MAVLink Router
+is a separately packaged dependency; see /usr/share/doc/ardupilot-swarm/
+mavlink-router.md.
 MESSAGE
 fi
 

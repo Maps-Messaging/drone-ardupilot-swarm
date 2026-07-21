@@ -3,6 +3,20 @@ ardupilot-swarm
 
 This package installs the standalone ArduPilot swarm host management tools.
 
+MAVLink Router is a separate upstream project:
+
+  https://github.com/mavlink-router/mavlink-router
+
+This Debian package depends on a separately packaged Debian package named
+'mavlink-router'. The upstream project publishes source code, not an official
+APT package. The mavlink-router package must therefore be supplied by a
+repository configured on the target host. A manual source installation does
+not satisfy the Debian dependency.
+
+Additional documentation is installed at:
+
+  /usr/share/doc/ardupilot-swarm/mavlink-router.md
+
 Run the host installer as the account that will own and run ArduPilot:
 
   ardupilot-swarm-install
