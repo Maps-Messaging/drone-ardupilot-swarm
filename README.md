@@ -2,10 +2,10 @@
 
 A standalone host installer for an ArduPilot SITL drone swarm.
 
-It follows the normal installation model rather than replacing it:
+It builds on the normal upstream installation models rather than replacing them:
 
+- MAVLink Router is cloned from its upstream Git repository, built with Meson/Ninja, and installed with its upstream systemd unit.
 - ArduPilot is cloned from its upstream Git repository and built in a normal working directory.
-- `mavlink-router` is a separate upstream project and must be available as its own Debian package from a configured APT repository.
 - Router endpoints are added under `/etc/mavlink-router/config.d`.
 - Start and stop scripts are installed under `/usr/local/bin`.
 - A single systemd unit invokes those scripts.
@@ -17,10 +17,10 @@ It follows the normal installation model rather than replacing it:
 config/      Runtime and mavlink-router templates
 scripts/     Installed start, stop and configuration commands
 systemd/     systemd unit template
-install.sh   First installation and idempotent reinstall
-update.sh    Update ArduPilot and reinstall project-managed files
+install.sh   Build/install MAVLink Router and ArduPilot
+update.sh    Update and rebuild both upstream projects
 uninstall.sh Remove project-managed files
-Makefile     Validation and source distribution
+Makefile     Validation, package and release targets
 ```
 
 ## Validate and build
@@ -47,29 +47,34 @@ ardupilot-swarm-update
 ardupilot-swarm-uninstall
 ```
 
-Installing the Debian package does not compile ArduPilot from a Debian maintainer script. The end user runs `ardupilot-swarm-install` as the account that will own the ArduPilot checkout and tmux session. This preserves the existing installation model and avoids building a large Git project as `root` during `apt install`.
+Installing the Debian package does not compile either upstream project from a Debian maintainer script. The end user runs `ardupilot-swarm-install` as the account that will own the source trees and tmux session. The installer uses `sudo` only for prerequisite packages, `ninja install`, configuration files, and systemd operations.
 
-## MAVLink Router prerequisite
+## Upstream projects
 
-`mavlink-router` is maintained in a separate upstream repository:
+MAVLink Router:
 
 ```text
 https://github.com/mavlink-router/mavlink-router
 ```
 
-The upstream project publishes source and build instructions, but does not publish an official Debian package through its GitHub project. This package therefore expects a separately built Debian package named `mavlink-router` to be available from a configured APT repository. A manual source installation does not satisfy the Debian dependency.
+ArduPilot:
 
-The recommended deployment is to build and publish `mavlink-router` independently, then publish and install `ardupilot-swarm`. The complete boundary, build notes and expected paths are documented in [`docs/mavlink-router.md`](docs/mavlink-router.md).
+```text
+https://github.com/ArduPilot/ardupilot
+```
+
+The default MAVLink Router ref is the upstream `v4` tag. Its source-build details and installed paths are documented in [`docs/mavlink-router.md`](docs/mavlink-router.md).
 
 ## Install
 
-Install the locally built Debian package:
+Install the package from the configured APT repository:
 
 ```bash
-sudo apt install ./dist/ardupilot-swarm_<version>_all.deb
+sudo apt-get update
+sudo apt-get install ardupilot-swarm
 ```
 
-Then run the host installer as the account that will own and run ArduPilot. Do not invoke the installer itself with `sudo`; it requests sudo only for package and system-file operations.
+Then run the host installer as the account that will own and run ArduPilot. Do not invoke the installer itself with `sudo`:
 
 ```bash
 ardupilot-swarm-install
@@ -81,28 +86,39 @@ When working directly from the source checkout, the equivalent command is:
 ./install.sh
 ```
 
+The installer:
+
+1. Installs the MAVLink Router and ArduPilot build prerequisites.
+2. Clones or updates MAVLink Router.
+3. Builds and installs `mavlink-routerd` and its upstream systemd unit.
+4. Clones or updates ArduPilot.
+5. Runs ArduPilot's prerequisite installer.
+6. Builds SITL ArduPlane.
+7. Installs the swarm scripts, router drop-ins and systemd unit.
+
 Defaults:
 
 ```text
-ArduPilot repository: https://github.com/ArduPilot/ardupilot.git
-ArduPilot ref:        master
-ArduPilot directory:  $HOME/ardupilot
-Build:                SITL ArduPlane
-Local router port:    14480
-System ID:            1
-SITL instance:        10
+MAVLink Router repository: https://github.com/mavlink-router/mavlink-router.git
+MAVLink Router ref:        v4
+MAVLink Router directory:  $HOME/mavlink-router
+ArduPilot repository:      https://github.com/ArduPilot/ardupilot.git
+ArduPilot ref:             master
+ArduPilot directory:       $HOME/ardupilot
+ArduPilot build:           SITL ArduPlane
+Local router port:         14480
+System ID:                 1
+SITL instance:             10
 ```
 
-A different branch, tag or commit can be selected during the first installation:
+Select different upstream refs or source directories during installation:
 
 ```bash
-./install.sh --ref ArduPlane-stable
-```
-
-A different source directory can also be selected:
-
-```bash
-./install.sh --ardupilot-dir /srv/ardupilot
+ardupilot-swarm-install \
+  --mavlink-router-ref v4 \
+  --mavlink-router-dir /srv/mavlink-router \
+  --ref ArduPlane-stable \
+  --ardupilot-dir /srv/ardupilot
 ```
 
 The installer enables `ardupilot-swarm.service` but does not start it on the first installation because the proprietary parameter file is deliberately absent.
@@ -127,14 +143,6 @@ To replace the file and restart the swarm immediately:
 
 ```bash
 sudo ardupilot-swarm-install-parameters /path/to/drone.parm --restart
-```
-
-A direct copy is also possible:
-
-```bash
-sudo install -m 0640 -o root -g "$(id -gn)" \
-  /path/to/drone.parm \
-  /etc/ardupilot-swarm/drone.parm
 ```
 
 No `.parm` file is allowed in the project tree; `make validate` enforces this.
@@ -162,7 +170,7 @@ sudo ardupilot-swarm-configure-gcs --show
 sudo ardupilot-swarm-configure-gcs --remove
 ```
 
-The project does not edit the router’s systemd unit. It uses the router’s normal configuration files:
+The project does not edit the router's systemd unit. It uses the router's normal configuration files:
 
 ```text
 /etc/mavlink-router/main.conf
@@ -195,23 +203,25 @@ tmux attach -t ardupilot-swarm
 
 ## Runtime configuration
 
-Deployment values live in:
+Deployment and source-build values live in:
 
 ```text
 /etc/ardupilot-swarm/ardupilot-swarm.conf
 ```
 
-The installer preserves this file during updates. It contains the source directory and ref, vehicle identity, local router endpoint, initial location, parameter-file path and tmux names.
+The installer preserves this file during updates. It contains both upstream repository refs/directories, vehicle identity, local router endpoint, initial location, parameter-file path and tmux names.
 
 After changing the local router address or port, rerun the updater so the router drop-in and service files are regenerated:
 
 ```bash
-./update.sh --skip-build
+ardupilot-swarm-update --skip-build
 ```
+
+`--skip-build` skips only the ArduPilot compile. MAVLink Router is still rebuilt and installed so its source installation remains current and verifiable.
 
 ## Update
 
-After upgrading the Debian package, run the updater as the same account that owns the ArduPilot source tree:
+After upgrading the Debian package, run the updater as the same account that owns the source trees:
 
 ```bash
 ardupilot-swarm-update
@@ -226,17 +236,17 @@ When working directly from the source checkout, the equivalent command is:
 The updater:
 
 1. Stops the swarm if it is active.
-2. Refuses to continue if the ArduPilot working tree has local changes.
-3. Fetches the configured branch, tag or commit.
-4. Updates submodules.
-5. Rebuilds ArduPlane SITL.
-6. Reinstalls project-managed scripts, service and router drop-in.
+2. Refuses to continue if either upstream working tree has local changes.
+3. Fetches the configured refs and updates submodules.
+4. Rebuilds and installs MAVLink Router.
+5. Rebuilds ArduPlane SITL unless `--skip-build` is supplied.
+6. Reinstalls project-managed scripts, service and router drop-ins.
 7. Restarts the swarm only if it was running before the update.
 
-Refresh the upstream build prerequisites when required:
+Refresh the ArduPilot prerequisite installer when required:
 
 ```bash
-./update.sh --refresh-prerequisites
+ardupilot-swarm-update --refresh-prerequisites
 ```
 
 ## Uninstall
@@ -253,19 +263,19 @@ When working directly from the source checkout, the equivalent command is:
 ./uninstall.sh
 ```
 
-The runtime configuration, proprietary parameter file and ArduPilot source tree are preserved.
+The runtime configuration, parameter file, upstream source trees and source-installed MAVLink Router remain in place.
 
-Remove those as well:
+Remove the runtime configuration and source trees as well:
 
 ```bash
-./uninstall.sh --purge
+ardupilot-swarm-uninstall --purge
 ```
 
-The `mavlink-router` package itself is not removed because it remains an independent installation.
+The purge removes the source and build directories but does not automatically remove the source-installed MAVLink Router binary or upstream systemd unit. They may be shared with other MAVLink deployments.
 
 ## Publish to Nexus
 
-The release target uploads the Debian package to the hosted Nexus APT repository. Credentials are supplied through the existing Buildkite secrets and are never written into the project.
+The release target uploads the Debian installer package to the hosted Nexus APT repository. Credentials are supplied through the existing Buildkite secrets and are never written into the project.
 
 ```bash
 export NEXUS_USER="$(buildkite-agent secret get NEXUS_USER)"

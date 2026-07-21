@@ -68,6 +68,21 @@ if grep -RniE \
   exit 1
 fi
 
+if grep -qE '(^|, )[[:space:]]*mavlink-router([ ,]|$)' packaging/build-deb.sh; then
+  echo "Debian package must not depend on an unavailable mavlink-router package." >&2
+  exit 1
+fi
+
+if ! grep -q 'chmod +x packaging/\*.sh scripts/\*.sh \*.sh' .buildkite/pipeline.yml; then
+  echo "Buildkite validation/build steps must restore executable script permissions." >&2
+  exit 1
+fi
+
+if ! grep -q 'chmod +x packaging/upload-deb.sh' .buildkite/pipeline.yml; then
+  echo "Buildkite publish step must restore upload script permissions." >&2
+  exit 1
+fi
+
 if command -v shellcheck >/dev/null 2>&1; then
   mapfile -d '' shell_scripts < <(
     find . \

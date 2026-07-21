@@ -15,8 +15,15 @@ ARDUPILOT_REPOSITORY="https://github.com/ArduPilot/ardupilot.git"
 ARDUPILOT_REF="master"
 ARDUPILOT_DIR="${HOME}/ardupilot"
 ARDUPILOT_BUILD_TARGET="plane"
-REF_SET=false
-DIR_SET=false
+
+MAVLINK_ROUTER_REPOSITORY="https://github.com/mavlink-router/mavlink-router.git"
+MAVLINK_ROUTER_REF="v4"
+MAVLINK_ROUTER_DIR="${HOME}/mavlink-router"
+
+ARDUPILOT_REF_SET=false
+ARDUPILOT_DIR_SET=false
+MAVLINK_ROUTER_REF_SET=false
+MAVLINK_ROUTER_DIR_SET=false
 REFRESH_PREREQUISITES=false
 SKIP_BUILD=false
 TEMP_CONFIG=""
@@ -29,15 +36,17 @@ usage() {
 Usage: ./install.sh [options]
 
 Options:
-  --ref REF                 ArduPilot branch, tag or commit. Default: master
-  --ardupilot-dir DIRECTORY Clone/build directory. Default: $HOME/ardupilot
-  --refresh-prerequisites   Run ArduPilot's prerequisite installer again
-  --skip-build              Install management files without building ArduPilot
-  --update                  Update an existing installation
-  -h, --help                Show this help
+  --ref REF                         ArduPilot branch, tag or commit. Default: master
+  --ardupilot-dir DIRECTORY         ArduPilot clone/build directory. Default: $HOME/ardupilot
+  --mavlink-router-ref REF          MAVLink Router branch, tag or commit. Default: v4
+  --mavlink-router-dir DIRECTORY    MAVLink Router clone/build directory. Default: $HOME/mavlink-router
+  --refresh-prerequisites           Run ArduPilot's prerequisite installer again
+  --skip-build                      Install management files without rebuilding ArduPilot
+  --update                          Update an existing installation
+  -h, --help                        Show this help
 
 Run this script as the account that will own and run ArduPilot, not with sudo.
-The script uses sudo only for packages and system files.
+The script uses sudo only for packages, source installation and system files.
 USAGE
 }
 
@@ -45,12 +54,22 @@ while (( $# > 0 )); do
   case "$1" in
     --ref)
       ARDUPILOT_REF="${2:?Missing value for --ref}"
-      REF_SET=true
+      ARDUPILOT_REF_SET=true
       shift 2
       ;;
     --ardupilot-dir)
       ARDUPILOT_DIR="${2:?Missing value for --ardupilot-dir}"
-      DIR_SET=true
+      ARDUPILOT_DIR_SET=true
+      shift 2
+      ;;
+    --mavlink-router-ref)
+      MAVLINK_ROUTER_REF="${2:?Missing value for --mavlink-router-ref}"
+      MAVLINK_ROUTER_REF_SET=true
+      shift 2
+      ;;
+    --mavlink-router-dir)
+      MAVLINK_ROUTER_DIR="${2:?Missing value for --mavlink-router-dir}"
+      MAVLINK_ROUTER_DIR_SET=true
       shift 2
       ;;
     --refresh-prerequisites)
@@ -96,8 +115,10 @@ fi
 RUN_USER="$(id -un)"
 RUN_GROUP="$(id -gn)"
 RUN_HOME="${HOME}"
-REQUESTED_REF="${ARDUPILOT_REF}"
-REQUESTED_DIR="${ARDUPILOT_DIR}"
+REQUESTED_ARDUPILOT_REF="${ARDUPILOT_REF}"
+REQUESTED_ARDUPILOT_DIR="${ARDUPILOT_DIR}"
+REQUESTED_MAVLINK_ROUTER_REF="${MAVLINK_ROUTER_REF}"
+REQUESTED_MAVLINK_ROUTER_DIR="${MAVLINK_ROUTER_DIR}"
 
 if [[ -r "${CONFIG_FILE}" ]]; then
   # shellcheck source=/dev/null
@@ -108,15 +129,23 @@ if [[ -r "${CONFIG_FILE}" ]]; then
     exit 1
   fi
 
-  if [[ "${REF_SET}" == "true" ]]; then
-    ARDUPILOT_REF="${REQUESTED_REF}"
+  if [[ "${ARDUPILOT_REF_SET}" == "true" ]]; then
+    ARDUPILOT_REF="${REQUESTED_ARDUPILOT_REF}"
   fi
-  if [[ "${DIR_SET}" == "true" ]]; then
-    ARDUPILOT_DIR="${REQUESTED_DIR}"
+  if [[ "${ARDUPILOT_DIR_SET}" == "true" ]]; then
+    ARDUPILOT_DIR="${REQUESTED_ARDUPILOT_DIR}"
+  fi
+  if [[ "${MAVLINK_ROUTER_REF_SET}" == "true" ]]; then
+    MAVLINK_ROUTER_REF="${REQUESTED_MAVLINK_ROUTER_REF}"
+  fi
+  if [[ "${MAVLINK_ROUTER_DIR_SET}" == "true" ]]; then
+    MAVLINK_ROUTER_DIR="${REQUESTED_MAVLINK_ROUTER_DIR}"
   fi
 fi
 
 ARDUPILOT_DIR="$(realpath -m "${ARDUPILOT_DIR}")"
+MAVLINK_ROUTER_DIR="$(realpath -m "${MAVLINK_ROUTER_DIR}")"
+MAVLINK_ROUTER_BUILD_DIR="${RUN_HOME}/.cache/ardupilot-swarm/mavlink-router-build"
 SERVICE_WAS_ACTIVE=false
 
 if systemctl is-active --quiet ardupilot-swarm.service 2>/dev/null; then
@@ -130,32 +159,79 @@ if [[ "${SERVICE_WAS_ACTIVE}" == "true" ]]; then
 fi
 
 sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y git tmux mavlink-router
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  git \
+  tmux \
+  meson \
+  ninja-build \
+  pkg-config \
+  gcc \
+  g++ \
+  systemd
 
-if [[ ! -d "${ARDUPILOT_DIR}/.git" ]]; then
-  if [[ -e "${ARDUPILOT_DIR}" ]]; then
-    echo "ArduPilot directory exists but is not a Git repository: ${ARDUPILOT_DIR}" >&2
-    exit 1
-  fi
-  git clone --recursive "${ARDUPILOT_REPOSITORY}" "${ARDUPILOT_DIR}"
-else
-  if [[ -n "$(git -C "${ARDUPILOT_DIR}" status --porcelain)" ]]; then
-    echo "ArduPilot working tree contains local changes: ${ARDUPILOT_DIR}" >&2
+checkout_repository() {
+  local repository="$1"
+  local reference="$2"
+  local directory="$3"
+  local name="$4"
+
+  if [[ ! -d "${directory}/.git" ]]; then
+    if [[ -e "${directory}" ]]; then
+      echo "${name} directory exists but is not a Git repository: ${directory}" >&2
+      exit 1
+    fi
+    git clone --recursive "${repository}" "${directory}"
+  elif [[ -n "$(git -C "${directory}" status --porcelain)" ]]; then
+    echo "${name} working tree contains local changes: ${directory}" >&2
     echo "Commit, stash or remove those changes before updating." >&2
     exit 1
   fi
+
+  git -C "${directory}" fetch --tags --prune origin
+
+  if git -C "${directory}" show-ref --verify --quiet "refs/remotes/origin/${reference}"; then
+    git -C "${directory}" checkout -B "${reference}" "origin/${reference}"
+  else
+    git -C "${directory}" checkout --detach "${reference}"
+  fi
+
+  git -C "${directory}" submodule sync --recursive
+  git -C "${directory}" submodule update --init --recursive
+}
+
+checkout_repository \
+  "${MAVLINK_ROUTER_REPOSITORY}" \
+  "${MAVLINK_ROUTER_REF}" \
+  "${MAVLINK_ROUTER_DIR}" \
+  "MAVLink Router"
+
+rm -rf "${MAVLINK_ROUTER_BUILD_DIR}"
+mkdir -p "${MAVLINK_ROUTER_BUILD_DIR}"
+meson setup \
+  --buildtype=release \
+  "${MAVLINK_ROUTER_BUILD_DIR}" \
+  "${MAVLINK_ROUTER_DIR}"
+
+ninja -C "${MAVLINK_ROUTER_BUILD_DIR}"
+sudo ninja -C "${MAVLINK_ROUTER_BUILD_DIR}" install
+sudo systemctl daemon-reload
+hash -r
+
+if ! command -v mavlink-routerd >/dev/null 2>&1 && [[ ! -x /usr/local/bin/mavlink-routerd ]]; then
+  echo "MAVLink Router installed, but mavlink-routerd was not found." >&2
+  exit 1
 fi
 
-git -C "${ARDUPILOT_DIR}" fetch --tags --prune origin
-
-if git -C "${ARDUPILOT_DIR}" show-ref --verify --quiet "refs/remotes/origin/${ARDUPILOT_REF}"; then
-  git -C "${ARDUPILOT_DIR}" checkout -B "${ARDUPILOT_REF}" "origin/${ARDUPILOT_REF}"
-else
-  git -C "${ARDUPILOT_DIR}" checkout --detach "${ARDUPILOT_REF}"
+if ! systemctl cat mavlink-router.service >/dev/null 2>&1; then
+  echo "MAVLink Router installed, but mavlink-router.service was not found." >&2
+  exit 1
 fi
 
-git -C "${ARDUPILOT_DIR}" submodule sync --recursive
-git -C "${ARDUPILOT_DIR}" submodule update --init --recursive
+checkout_repository \
+  "${ARDUPILOT_REPOSITORY}" \
+  "${ARDUPILOT_REF}" \
+  "${ARDUPILOT_DIR}" \
+  "ArduPilot"
 
 PREREQUISITE_STATE_DIR="${RUN_HOME}/.cache/ardupilot-swarm"
 PREREQUISITE_MARKER="${PREREQUISITE_STATE_DIR}/prerequisites-installed"
@@ -186,25 +262,48 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
     -e "s|@RUN_HOME@|${RUN_HOME}|g" \
     -e "s|@ARDUPILOT_REF@|${ARDUPILOT_REF}|g" \
     -e "s|@ARDUPILOT_DIR@|${ARDUPILOT_DIR}|g" \
+    -e "s|@MAVLINK_ROUTER_REF@|${MAVLINK_ROUTER_REF}|g" \
+    -e "s|@MAVLINK_ROUTER_DIR@|${MAVLINK_ROUTER_DIR}|g" \
     "${PROJECT_DIR}/config/ardupilot-swarm.conf.example" > "${TEMP_CONFIG}"
 
   sudo install -m 0644 -o root -g root "${TEMP_CONFIG}" "${CONFIG_FILE}"
 else
   echo "Preserving existing runtime configuration: ${CONFIG_FILE}"
 
-  update_config_value() {
+  set_config_value() {
     local key="$1"
     local value="$2"
     local escaped_value
     escaped_value="$(printf '%s' "${value}" | sed 's/[&|]/\\&/g')"
-    sudo sed -i "s|^${key}=.*|${key}=\"${escaped_value}\"|" "${CONFIG_FILE}"
+
+    if grep -q "^${key}=" "${CONFIG_FILE}"; then
+      sudo sed -i "s|^${key}=.*|${key}=\"${escaped_value}\"|" "${CONFIG_FILE}"
+    else
+      printf '%s="%s"\n' "${key}" "${value}" | sudo tee -a "${CONFIG_FILE}" >/dev/null
+    fi
   }
 
-  if [[ "${REF_SET}" == "true" ]]; then
-    update_config_value ARDUPILOT_REF "${ARDUPILOT_REF}"
+  if [[ "${ARDUPILOT_REF_SET}" == "true" ]]; then
+    set_config_value ARDUPILOT_REF "${ARDUPILOT_REF}"
   fi
-  if [[ "${DIR_SET}" == "true" ]]; then
-    update_config_value ARDUPILOT_DIR "${ARDUPILOT_DIR}"
+  if [[ "${ARDUPILOT_DIR_SET}" == "true" ]]; then
+    set_config_value ARDUPILOT_DIR "${ARDUPILOT_DIR}"
+  fi
+  if [[ "${MAVLINK_ROUTER_REF_SET}" == "true" ]]; then
+    set_config_value MAVLINK_ROUTER_REF "${MAVLINK_ROUTER_REF}"
+  fi
+  if [[ "${MAVLINK_ROUTER_DIR_SET}" == "true" ]]; then
+    set_config_value MAVLINK_ROUTER_DIR "${MAVLINK_ROUTER_DIR}"
+  fi
+
+  if ! grep -q '^MAVLINK_ROUTER_REPOSITORY=' "${CONFIG_FILE}"; then
+    set_config_value MAVLINK_ROUTER_REPOSITORY "${MAVLINK_ROUTER_REPOSITORY}"
+  fi
+  if ! grep -q '^MAVLINK_ROUTER_REF=' "${CONFIG_FILE}"; then
+    set_config_value MAVLINK_ROUTER_REF "${MAVLINK_ROUTER_REF}"
+  fi
+  if ! grep -q '^MAVLINK_ROUTER_DIR=' "${CONFIG_FILE}"; then
+    set_config_value MAVLINK_ROUTER_DIR "${MAVLINK_ROUTER_DIR}"
   fi
 fi
 
@@ -255,11 +354,13 @@ cat <<EOF_SUMMARY
 
 Installation complete.
 
-ArduPilot source: ${ARDUPILOT_DIR}
-ArduPilot ref:    ${ARDUPILOT_REF}
-Runtime config:   ${CONFIG_FILE}
-Parameter file:   ${PARAM_FILE}
-Router endpoint:  ${ROUTER_ADDRESS}:${ROUTER_PORT}
+MAVLink Router source: ${MAVLINK_ROUTER_DIR}
+MAVLink Router ref:    ${MAVLINK_ROUTER_REF}
+ArduPilot source:      ${ARDUPILOT_DIR}
+ArduPilot ref:         ${ARDUPILOT_REF}
+Runtime config:        ${CONFIG_FILE}
+Parameter file:        ${PARAM_FILE}
+Router endpoint:       ${ROUTER_ADDRESS}:${ROUTER_PORT}
 
 Next steps:
   sudo ardupilot-swarm-install-parameters /path/to/drone.parm

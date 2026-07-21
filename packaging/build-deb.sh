@@ -13,7 +13,7 @@ PACKAGE_ARCHITECTURE="${PACKAGE_ARCHITECTURE:-all}"
 PACKAGE_MAINTAINER="${PACKAGE_MAINTAINER:-Matthew Buckton <matthew@buckton.org>}"
 PACKAGE_SECTION="${PACKAGE_SECTION:-misc}"
 PACKAGE_PRIORITY="${PACKAGE_PRIORITY:-optional}"
-PACKAGE_DEPENDS="${PACKAGE_DEPENDS:-bash, git, sudo, tmux, mavlink-router, systemd, coreutils, sed, grep}"
+PACKAGE_DEPENDS="${PACKAGE_DEPENDS:-bash, sudo, systemd, coreutils, sed, grep}"
 
 log() {
   printf '[ardupilot-swarm-package] %s\n' "$*"
@@ -66,10 +66,10 @@ Maintainer: ${PACKAGE_MAINTAINER}
 Installed-Size: ${installed_size}
 Depends: ${PACKAGE_DEPENDS}
 Description: ArduPilot SITL swarm host installer
- Installs the standalone management project used to clone and build ArduPilot.
- Requires the separately packaged mavlink-router service, installs the swarm start
- and stop scripts, and configures the systemd service. Deployment-specific GCS and
- parameter files remain external.
+ Installs the standalone management project used to build MAVLink Router and
+ ArduPilot on the target host, install the swarm start and stop scripts, and
+ configure their systemd services. Deployment-specific GCS and parameter files
+ remain external.
 EOF_CONTROL
 }
 

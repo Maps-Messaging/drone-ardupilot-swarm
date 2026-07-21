@@ -1,6 +1,6 @@
-# MAVLink Router Dependency
+# MAVLink Router Source Build
 
-`mavlink-router` is a separate upstream project. It is not part of ArduPilot and it is not maintained by this project.
+`mavlink-router` is a separate upstream project. It is not part of ArduPilot and is not maintained by this project.
 
 ## Upstream source
 
@@ -10,106 +10,140 @@ Repository:
 https://github.com/mavlink-router/mavlink-router
 ```
 
-The upstream project builds `mavlink-routerd`, installs a systemd service, and uses the following default configuration locations:
+Default ref used by this installer:
+
+```text
+v4
+```
+
+The upstream project builds `mavlink-routerd`, installs a systemd service, and uses these default configuration locations:
 
 ```text
 /etc/mavlink-router/main.conf
 /etc/mavlink-router/config.d/
 ```
 
-This project only adds its own endpoint files under `config.d`; it does not replace the router service or upstream configuration model.
+This project adds endpoint files under `config.d`; it does not replace the upstream router process or service model.
 
-## Debian package availability
+## Why it is built by the installer
 
-The upstream repository publishes source code and build instructions. It does not publish an official Debian package through GitHub Packages or a Debian APT repository.
+The upstream project publishes source and build instructions rather than an official Debian package in a generally available APT repository. Therefore, the `ardupilot-swarm` Debian package does not declare `Depends: mavlink-router`.
 
-The `ardupilot-swarm` Debian package declares:
+Instead, `ardupilot-swarm-install` performs the source build on the target host:
 
-```text
-Depends: mavlink-router
-```
+1. Installs the build prerequisites.
+2. Clones or updates the pinned upstream ref.
+3. Fetches the MAVLink C-library submodule.
+4. Configures a release build with Meson.
+5. Builds with Ninja.
+6. Installs with `sudo ninja install`.
+7. Reloads systemd and verifies the binary and service.
 
-Therefore, a Debian package named `mavlink-router` must already be available from one of the APT repositories configured on the target host. Installing `mavlink-router` directly from source does not satisfy this Debian package dependency.
+The source tree belongs to the runtime user. Only the final upstream install step runs as root.
 
-Recommended deployment model:
+## Build prerequisites
 
-1. Maintain `mavlink-router` as a separate build/package project.
-2. Clone a pinned upstream tag or commit.
-3. Build a Debian package named `mavlink-router`.
-4. Publish it to the same hosted APT repository used for `ardupilot-swarm`, or another repository configured on the target host.
-5. Publish `ardupilot-swarm` after the router package is available.
-
-APT can then resolve both packages normally:
+The installer installs the upstream Debian/Ubuntu prerequisites:
 
 ```bash
-sudo apt-get update
-sudo apt-get install ardupilot-swarm
+sudo apt-get install -y \
+  git \
+  meson \
+  ninja-build \
+  pkg-config \
+  gcc \
+  g++ \
+  systemd
 ```
 
-## Upstream source build
+## Equivalent manual build
 
-The upstream project currently documents these Debian/Ubuntu build prerequisites:
+The installer performs the equivalent of:
 
 ```bash
-sudo apt-get install git meson ninja-build pkg-config gcc g++ systemd
+git clone --recursive \
+  --branch v4 \
+  https://github.com/mavlink-router/mavlink-router.git \
+  "$HOME/mavlink-router"
+
+meson setup \
+  --buildtype=release \
+  "$HOME/.cache/ardupilot-swarm/mavlink-router-build" \
+  "$HOME/mavlink-router"
+
+ninja -C "$HOME/.cache/ardupilot-swarm/mavlink-router-build"
+sudo ninja -C "$HOME/.cache/ardupilot-swarm/mavlink-router-build" install
+sudo systemctl daemon-reload
 ```
 
-Typical upstream build and installation commands are:
+The build directory is kept outside the Git checkout and recreated for each installation or update, so generated files cannot make the source tree appear modified or preserve stale build state.
 
-```bash
-git clone https://github.com/mavlink-router/mavlink-router.git
-cd mavlink-router
-git submodule update --init --recursive
-meson setup build . --buildtype=release
-ninja -C build
-sudo ninja -C build install
-```
+## Runtime verification
 
-For reproducible deployment, use a pinned tag or commit rather than building an unpinned `master` branch.
-
-## Expected installation
-
-Before installing or running the swarm, verify:
+The installer verifies both components after installation:
 
 ```bash
 command -v mavlink-routerd
 systemctl cat mavlink-router.service
 ```
 
-Expected runtime components include:
+The expected source installation normally places the binary under `/usr/local/bin` and registers `mavlink-router.service` in a systemd unit directory.
+
+The installer then enables and starts the upstream service:
+
+```bash
+sudo systemctl enable --now mavlink-router.service
+```
+
+## Configuration ownership
+
+MAVLink Router owns:
 
 ```text
 mavlink-routerd
 mavlink-router.service
-/etc/mavlink-router/main.conf
-/etc/mavlink-router/config.d/
 ```
 
-The swarm installer adds:
+The swarm installer manages:
 
 ```text
 /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
 ```
 
-The ground-controller helper adds:
+The ground-controller helper manages:
 
 ```text
 /etc/mavlink-router/config.d/90-ground-controller.conf
 ```
 
-## Current packaging boundary
+The installer creates `/etc/mavlink-router/main.conf` only when it does not already exist. Existing router configuration is preserved.
 
-The projects have deliberately separate responsibilities:
+## Updating
+
+`ardupilot-swarm-update` uses the router repository and ref stored in:
 
 ```text
-mavlink-router package
-  owns mavlink-routerd and mavlink-router.service
-
-ardupilot-swarm package
-  depends on mavlink-router
-  builds ArduPilot SITL after package installation
-  adds router endpoint configuration
-  installs swarm scripts and ardupilot-swarm.service
+/etc/ardupilot-swarm/ardupilot-swarm.conf
 ```
 
-This prevents the swarm package from silently cloning and compiling an unrelated routing daemon during installation.
+The default values are:
+
+```bash
+MAVLINK_ROUTER_REPOSITORY="https://github.com/mavlink-router/mavlink-router.git"
+MAVLINK_ROUTER_REF="v4"
+MAVLINK_ROUTER_DIR="$HOME/mavlink-router"
+```
+
+Change the ref through the updater rather than editing the Git checkout manually:
+
+```bash
+ardupilot-swarm-update --mavlink-router-ref v4
+```
+
+The updater refuses to overwrite local changes in the MAVLink Router working tree.
+
+## Uninstall boundary
+
+A normal swarm uninstall removes only the swarm's router endpoint files. It leaves the source-installed MAVLink Router service and binary in place because they may be used by other MAVLink applications.
+
+A purge removes the cloned source and cached build directory. It still leaves the installed upstream binary and systemd unit in place; remove those separately only when the host no longer uses MAVLink Router.

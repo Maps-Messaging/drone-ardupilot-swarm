@@ -10,6 +10,10 @@ ARDUPILOT_REF="@ARDUPILOT_REF@"
 ARDUPILOT_DIR="@ARDUPILOT_DIR@"
 ARDUPILOT_BUILD_TARGET="plane"
 
+MAVLINK_ROUTER_REPOSITORY="https://github.com/mavlink-router/mavlink-router.git"
+MAVLINK_ROUTER_REF="@MAVLINK_ROUTER_REF@"
+MAVLINK_ROUTER_DIR="@MAVLINK_ROUTER_DIR@"
+
 PARAM_FILE="/etc/ardupilot-swarm/drone.parm"
 
 SESSION_NAME="ardupilot-swarm"

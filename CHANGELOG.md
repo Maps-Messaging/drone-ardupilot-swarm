@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2
+
+- Removed the unavailable Debian dependency on `mavlink-router`.
+- Added target-host cloning, Meson/Ninja build and source installation of MAVLink Router.
+- Pinned the default MAVLink Router ref to upstream tag `v4`.
+- Added configurable MAVLink Router repository ref and source directory.
+- Updated the updater to rebuild and reinstall MAVLink Router before rebuilding ArduPilot.
+- Kept the MAVLink Router build directory outside its Git checkout to preserve clean updates.
+- Updated Debian metadata and documentation for the source-build installation model.
+
 ## 0.2.1
 
 - Documented MAVLink Router as a separate upstream project and Debian package dependency.

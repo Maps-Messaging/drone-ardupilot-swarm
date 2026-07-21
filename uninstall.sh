@@ -13,6 +13,8 @@ elif [[ -n "${1:-}" ]]; then
 fi
 
 ARDUPILOT_DIR=""
+MAVLINK_ROUTER_DIR=""
+RUN_HOME="${HOME}"
 if [[ -r "${CONFIG_FILE}" ]]; then
   # shellcheck source=/dev/null
   source "${CONFIG_FILE}"
@@ -40,9 +42,12 @@ if [[ "${PURGE}" == "true" ]]; then
   if [[ -n "${ARDUPILOT_DIR}" && -d "${ARDUPILOT_DIR}" ]]; then
     rm -rf "${ARDUPILOT_DIR}"
   fi
-  rm -rf "${HOME}/.cache/ardupilot-swarm"
+  if [[ -n "${MAVLINK_ROUTER_DIR}" && -d "${MAVLINK_ROUTER_DIR}" ]]; then
+    rm -rf "${MAVLINK_ROUTER_DIR}"
+  fi
+  rm -rf "${RUN_HOME}/.cache/ardupilot-swarm"
 else
-  echo "Preserved /etc/ardupilot-swarm and the ArduPilot source tree."
+  echo "Preserved /etc/ardupilot-swarm and both upstream source trees."
 fi
 
 "${SUDO[@]}" systemctl daemon-reload
