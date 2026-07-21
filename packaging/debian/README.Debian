@@ -11,10 +11,11 @@ ArduPilot:
 
 The installer:
 
-* installs MAVLink Router and ArduPilot build prerequisites;
+* installs MAVLink Router and ArduPilot build prerequisites, including python3-pip;
 * clones, builds and source-installs MAVLink Router;
 * clones or updates ArduPilot;
 * runs the normal ArduPilot prerequisite installer;
+* installs and verifies empy 3.3.4 for the ArduPilot build;
 * builds ArduPlane SITL;
 * installs the swarm start and stop scripts under /usr/local/bin; and
 * installs and enables ardupilot-swarm.service.

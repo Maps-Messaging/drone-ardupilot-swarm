@@ -73,6 +73,16 @@ if grep -qE '(^|, )[[:space:]]*mavlink-router([ ,]|$)' packaging/build-deb.sh; t
   exit 1
 fi
 
+if ! grep -q 'python3-pip' install.sh; then
+  echo "Installer must install python3-pip before Python build dependencies." >&2
+  exit 1
+fi
+
+if ! grep -q "'empy==3.3.4'" install.sh; then
+  echo "Installer must install the ArduPilot-required empy==3.3.4 package." >&2
+  exit 1
+fi
+
 if ! grep -q 'chmod +x packaging/\*.sh scripts/\*.sh \*.sh' .buildkite/pipeline.yml; then
   echo "Buildkite validation/build steps must restore executable script permissions." >&2
   exit 1

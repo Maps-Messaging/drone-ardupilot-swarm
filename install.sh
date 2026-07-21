@@ -167,7 +167,18 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   pkg-config \
   gcc \
   g++ \
+  python3-pip \
   systemd
+
+python3 -m pip install \
+  --user \
+  --break-system-packages \
+  'empy==3.3.4'
+
+if ! python3 -c 'import em; assert getattr(em, "__version__", None) == "3.3.4"' >/dev/null 2>&1; then
+  echo "ArduPilot requires Python package empy==3.3.4, but it could not be loaded." >&2
+  exit 1
+fi
 
 checkout_repository() {
   local repository="$1"

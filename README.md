@@ -88,13 +88,14 @@ When working directly from the source checkout, the equivalent command is:
 
 The installer:
 
-1. Installs the MAVLink Router and ArduPilot build prerequisites.
+1. Installs the MAVLink Router and ArduPilot build prerequisites, including `python3-pip`.
 2. Clones or updates MAVLink Router.
 3. Builds and installs `mavlink-routerd` and its upstream systemd unit.
 4. Clones or updates ArduPilot.
 5. Runs ArduPilot's prerequisite installer.
-6. Builds SITL ArduPlane.
-7. Installs the swarm scripts, router drop-ins and systemd unit.
+6. Installs and verifies the ArduPilot-required Python package `empy==3.3.4`.
+7. Builds SITL ArduPlane.
+8. Installs the swarm scripts, router drop-ins and systemd unit.
 
 Defaults:
 

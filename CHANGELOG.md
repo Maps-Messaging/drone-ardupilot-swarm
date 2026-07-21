@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- Added `python3-pip` to the target-host prerequisite installation.
+- Explicitly installs and verifies `empy==3.3.4` before building ArduPilot.
+- Prevents a stale prerequisite marker from allowing the ArduPilot build to fail later with a missing `em` module.
+
 ## 0.2.2
 
 - Removed the unavailable Debian dependency on `mavlink-router`.
