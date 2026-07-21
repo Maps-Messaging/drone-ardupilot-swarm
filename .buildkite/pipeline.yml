@@ -1,6 +1,10 @@
 steps:
   - label: ":shell: Validate"
-    command: "make validate"
+    commands:
+      - "chmod +x packaging/*.sh"
+      - "chmod +x scripts/*.sh"
+      - "chmod +x *.sh"
+      - "make validate"
 
   - wait
 
