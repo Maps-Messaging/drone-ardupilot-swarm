@@ -73,7 +73,33 @@ ardupilot-swarm-install
 
 Run `ardupilot-swarm-install` as the account that will own the source trees and tmux session, not with `sudo`.
 
-The installer builds MAVLink Router and ArduPlane SITL, applies the managed GUIDED throttle patch for the ArduPlane build, installs the runtime scripts, writes three local router endpoints, and enables the systemd services.
+The installer builds MAVLink Router and ArduPlane SITL, applies the managed GUIDED throttle patch for the ArduPlane build, installs Tailscale from its official APT repository, installs the latest available `maps`, `maps-apps`, and `maps-drone` packages from the configured Maps Messaging APT repository, installs the runtime scripts, writes three local router endpoints, and enables the systemd services.
+
+## Maps packages
+
+The host installer installs these packages by APT package name:
+
+```text
+maps
+maps-apps
+maps-drone
+```
+
+No package version is pinned and no direct `.deb` URL is used. APT selects the current candidate from the configured Maps Messaging repository, so package upgrades remain normal `apt` operations.
+
+The Maps Messaging APT source must be configured before running `ardupilot-swarm-install`.
+
+## Tailscale
+
+The host installer installs the `tailscale` package and enables `tailscaled.service`. It does not authenticate the host or run `tailscale up`.
+
+Complete the deployment-specific configuration after installation:
+
+```bash
+sudo tailscale up
+```
+
+Authentication, hostname, tags, routes, and Tailscale SSH settings remain deliberate post-install choices.
 
 ## Parameter file
 
