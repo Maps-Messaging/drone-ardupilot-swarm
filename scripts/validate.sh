@@ -7,6 +7,7 @@ cd "${PROJECT_DIR}"
 
 PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
 MAPS_ROUTER_FILE="config/mavlink-router-maps.conf"
+MAPS_INTERFACE_FILE="config/maps-mavlink-interface.yaml.example"
 
 required_files=(
   VERSION
@@ -22,6 +23,7 @@ required_files=(
   config/mavlink-router-main.conf
   config/mavlink-router-ardupilot.conf.in
   "${MAPS_ROUTER_FILE}"
+  "${MAPS_INTERFACE_FILE}"
   scripts/start-ardupilot-swarm
   scripts/stop-ardupilot-swarm
   scripts/ardupilot-swarm-configure-gcs
@@ -126,9 +128,19 @@ if ! grep -q '^\[UdpEndpoint maps\]$' "${MAPS_ROUTER_FILE}" ||
   exit 1
 fi
 
+if ! grep -q 'url: udp://0.0.0.0:14550/' "${MAPS_INTERFACE_FILE}" ||
+   ! grep -q 'protocol: mavlink' "${MAPS_INTERFACE_FILE}" ||
+   ! grep -q 'systemId: 250' "${MAPS_INTERFACE_FILE}" ||
+   ! grep -q 'componentId: 194' "${MAPS_INTERFACE_FILE}" ||
+   ! grep -q 'dialectName: "ardupilot/ardupilotmega"' "${MAPS_INTERFACE_FILE}"; then
+  echo "Maps interface example must listen for MAVLink on UDP port 14550." >&2
+  exit 1
+fi
+
 if ! grep -q 'mavlink-router-maps.conf' packaging/debian/postinst ||
+   ! grep -q '/etc/mavlink-router/config.d/50-maps.conf' packaging/debian/postinst ||
    ! grep -q '/etc/mavlink-router/config.d/30-maps.conf' packaging/debian/postinst; then
-  echo "Debian post-install must install the managed Maps router endpoint." >&2
+  echo "Debian post-install must migrate the managed Maps endpoint to 50-maps.conf." >&2
   exit 1
 fi
 
@@ -144,8 +156,9 @@ if ! grep -q 'pane_dead' scripts/start-ardupilot-swarm ||
   exit 1
 fi
 
-if ! grep -q '/etc/mavlink-router/config.d/30-maps.conf' uninstall.sh; then
-  echo "Uninstall must remove the managed Maps router endpoint." >&2
+if ! grep -q '/etc/mavlink-router/config.d/30-maps.conf' uninstall.sh ||
+   ! grep -q '/etc/mavlink-router/config.d/50-maps.conf' uninstall.sh; then
+  echo "Uninstall must remove legacy and current managed Maps router endpoints." >&2
   exit 1
 fi
 
