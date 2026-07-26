@@ -56,13 +56,15 @@ Do not run that command with `sudo`. The installer invokes `sudo` only where sys
 The installer:
 
 1. Installs the required Debian or Ubuntu tools.
-2. Installs and verifies `empy==3.3.4`.
-3. Clones and builds MAVLink Router.
-4. Clones ArduPilot and builds the `plane` SITL target.
-5. Applies the packaged GUIDED throttle patch during the ArduPlane build.
-6. Reverses the patch after the build so the ArduPilot checkout remains clean.
-7. Installs the runtime scripts and systemd unit.
-8. Generates three local MAVLink Router endpoints.
+2. Adds the official Tailscale APT repository, installs `tailscale`, and starts `tailscaled.service`.
+3. Installs the latest available `maps`, `maps-apps`, and `maps-drone` packages from the configured Maps Messaging APT repository.
+4. Installs and verifies `empy==3.3.4`.
+5. Clones and builds MAVLink Router.
+6. Clones ArduPilot and builds the `plane` SITL target.
+7. Applies the packaged GUIDED throttle patch during the ArduPlane build.
+8. Reverses the patch after the build so the ArduPilot checkout remains clean.
+9. Installs the runtime scripts and systemd unit.
+10. Generates three local MAVLink Router endpoints.
 
 Default source locations:
 
@@ -71,7 +73,58 @@ $HOME/mavlink-router
 $HOME/ardupilot
 ```
 
-## 5. Managed GUIDED throttle patch
+## 5. Install Maps packages
+
+`ardupilot-swarm-install` installs these packages from the already configured Maps Messaging APT repository:
+
+```text
+maps
+maps-apps
+maps-drone
+```
+
+The installer uses package names rather than the versioned `.deb` path. No version is pinned, so APT installs the current repository candidate and future upgrades are handled normally:
+
+```bash
+sudo apt-get update
+sudo apt-get install --only-upgrade maps maps-apps maps-drone
+```
+
+Verify the installed packages with:
+
+```bash
+dpkg-query -W maps maps-apps maps-drone
+```
+
+## 6. Configure Tailscale
+
+The installer installs Tailscale from its official stable APT repository and enables and starts:
+
+```text
+tailscaled.service
+```
+
+It deliberately does not authenticate the host. Configure the tailnet connection after the installer completes:
+
+```bash
+sudo tailscale up
+```
+
+Add deployment-specific options such as `--hostname`, tags, routes, or Tailscale SSH only when they have been decided for the target environment.
+
+Verify the daemon before authentication:
+
+```bash
+systemctl status tailscaled.service
+```
+
+After authentication, verify the connection with:
+
+```bash
+tailscale status
+```
+
+## 7. Managed GUIDED throttle patch
 
 The patch is stored in the installer package at:
 
@@ -85,7 +138,7 @@ This prevents a low-altitude, low-speed virtual vehicle from behaving as though 
 
 If the selected ArduPilot ref changes enough that the patch no longer applies, the installer stops before building and reports the incompatibility.
 
-## 6. Install the parameter file
+## 8. Install the parameter file
 
 The package deliberately contains no `.parm` file. Install the supplied physical-autopilot parameters unchanged:
 
@@ -107,7 +160,7 @@ sudo ardupilot-swarm-install-parameters /path/to/drone.parm --restart
 
 The start script applies the same file to all three instances with `--add-param-file`. The explicit `--sysid` command-line value remains different for each vehicle.
 
-## 7. Configure the ground controller
+## 9. Configure the ground controller
 
 ```bash
 sudo ardupilot-swarm-configure-gcs 10.140.62.146 14550
@@ -132,7 +185,7 @@ sudo cat /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
 sudo ardupilot-swarm-configure-gcs --show
 ```
 
-## 8. Start the swarm
+## 10. Start the swarm
 
 ```bash
 sudo systemctl start ardupilot-swarm.service
@@ -147,7 +200,7 @@ tmux attach -t ardupilot-swarm
 
 The session contains windows `usv1`, `usv2`, and `usv3`.
 
-## 9. Stop or restart
+## 11. Stop or restart
 
 ```bash
 sudo systemctl stop ardupilot-swarm.service
@@ -156,7 +209,7 @@ sudo systemctl restart ardupilot-swarm.service
 
 Stopping the service kills the complete `ardupilot-swarm` tmux session.
 
-## 10. Runtime configuration
+## 12. Runtime configuration
 
 Edit:
 
@@ -177,7 +230,7 @@ HOME_LONGITUDES=("24.828300" "24.828300" "24.828353")
 
 All arrays must contain the same number of entries. The start script and installer reject incomplete configurations.
 
-## 11. Upgrade from the single-vehicle configuration
+## 13. Upgrade from the single-vehicle configuration
 
 After upgrading the Debian package, run:
 
@@ -193,11 +246,12 @@ A pre-0.3.0 scalar configuration is backed up to:
 
 The installer then appends the default three-vehicle array configuration while preserving the existing user, paths, source refs, router address, parameter path, altitude, heading, and wipe setting.
 
-## 12. Verify operation
+## 14. Verify operation
 
 Check the services and generated configuration:
 
 ```bash
+systemctl status tailscaled.service
 systemctl status mavlink-router.service
 systemctl status ardupilot-swarm.service
 sudo cat /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
@@ -208,7 +262,7 @@ Confirm the three MAVLink heartbeats report system IDs `1`, `2`, and `3`.
 
 For the GUIDED throttle fix, command a vehicle while it is near home altitude and moving below 5 m/s. It should continue to produce throttle rather than entering fixed-wing launch suppression.
 
-## 13. Troubleshooting
+## 15. Troubleshooting
 
 ### The managed patch does not apply
 
@@ -245,7 +299,7 @@ tmux attach -t ardupilot-swarm
 
 Select the corresponding `usv1`, `usv2`, or `usv3` window.
 
-## 14. Typical installation
+## 16. Typical installation
 
 ```bash
 sudo apt-get update
@@ -253,6 +307,8 @@ sudo apt-get install ardupilot-swarm
 
 ardupilot-swarm-install
 
+dpkg-query -W maps maps-apps maps-drone
+sudo tailscale up
 sudo ardupilot-swarm-install-parameters ~/Downloads/drone.parm
 sudo ardupilot-swarm-configure-gcs 10.140.62.146 14550
 sudo systemctl enable --now ardupilot-swarm.service
