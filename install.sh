@@ -10,6 +10,9 @@ ROUTER_DROPIN_DIR="${ROUTER_DIR}/config.d"
 ROUTER_ENDPOINT_FILE="${ROUTER_DROPIN_DIR}/20-ardupilot-swarm.conf"
 SERVICE_FILE="/etc/systemd/system/ardupilot-swarm.service"
 SHARE_DIR="/usr/local/share/ardupilot-swarm"
+TAILSCALE_KEYRING_FILE="/usr/share/keyrings/tailscale-archive-keyring.gpg"
+TAILSCALE_LIST_FILE="/etc/apt/sources.list.d/tailscale.list"
+MAPS_PACKAGES=("maps" "maps-apps" "maps-drone")
 
 ARDUPILOT_REPOSITORY="https://github.com/ArduPilot/ardupilot.git"
 ARDUPILOT_REF="master"
@@ -191,6 +194,93 @@ if [[ ! -f "${ARDUPILOT_PATCH_PATH}" ]]; then
   exit 1
 fi
 
+install_maps_packages() {
+  local package
+  local unavailable=()
+
+  sudo apt-get update
+
+  for package in "${MAPS_PACKAGES[@]}"; do
+    if ! apt-cache show "${package}" >/dev/null 2>&1; then
+      unavailable+=("${package}")
+    fi
+  done
+
+  if (( ${#unavailable[@]} > 0 )); then
+    echo "The following Maps packages are not available from the configured APT sources: ${unavailable[*]}" >&2
+    echo "Configure the Maps Messaging APT repository before running this installer." >&2
+    exit 1
+  fi
+
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${MAPS_PACKAGES[@]}"
+
+  for package in "${MAPS_PACKAGES[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "${package}" 2>/dev/null | grep -q '^install ok installed$'; then
+      echo "Maps package was not installed successfully: ${package}" >&2
+      exit 1
+    fi
+  done
+
+  echo "Installed Maps packages: ${MAPS_PACKAGES[*]}"
+}
+
+install_tailscale() {
+  local distribution
+  local codename
+  local repository_base
+
+  case "${ID:-}" in
+    ubuntu)
+      distribution="ubuntu"
+      codename="${VERSION_CODENAME:-}"
+      ;;
+    debian)
+      distribution="debian"
+      codename="${VERSION_CODENAME:-}"
+      ;;
+    *)
+      if [[ "${ID_LIKE:-}" == *ubuntu* ]]; then
+        distribution="ubuntu"
+        codename="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
+      elif [[ "${ID_LIKE:-}" == *debian* ]]; then
+        distribution="debian"
+        codename="${DEBIAN_CODENAME:-${VERSION_CODENAME:-}}"
+      else
+        echo "Cannot determine the Tailscale package repository for ${PRETTY_NAME:-this system}." >&2
+        exit 1
+      fi
+      ;;
+  esac
+
+  if [[ -z "${codename}" ]]; then
+    echo "Cannot determine the Debian or Ubuntu codename required by the Tailscale repository." >&2
+    exit 1
+  fi
+
+  repository_base="https://pkgs.tailscale.com/stable/${distribution}/${codename}"
+
+  sudo install -d -m 0755 /usr/share/keyrings /etc/apt/sources.list.d
+  curl -fsSL "${repository_base}.noarmor.gpg" | sudo tee "${TAILSCALE_KEYRING_FILE}" >/dev/null
+  curl -fsSL "${repository_base}.tailscale-keyring.list" | sudo tee "${TAILSCALE_LIST_FILE}" >/dev/null
+
+  sudo apt-get update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale
+  sudo systemctl enable --now tailscaled.service
+
+  if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Tailscale was installed, but the tailscale command was not found." >&2
+    exit 1
+  fi
+
+  if ! systemctl is-active --quiet tailscaled.service; then
+    echo "Tailscale was installed, but tailscaled.service is not active." >&2
+    exit 1
+  fi
+
+  echo "Tailscale installed and tailscaled.service started."
+  echo "Tailnet authentication is intentionally left for post-install configuration."
+}
+
 if systemctl is-active --quiet ardupilot-swarm.service 2>/dev/null; then
   SERVICE_WAS_ACTIVE=true
 fi
@@ -203,6 +293,8 @@ fi
 
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  ca-certificates \
+  curl \
   git \
   tmux \
   meson \
@@ -212,6 +304,9 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   g++ \
   python3-pip \
   systemd
+
+install_tailscale
+install_maps_packages
 
 python3 -m pip install \
   --user \
@@ -500,11 +595,14 @@ ArduPilot source:      ${ARDUPILOT_DIR}
 ArduPilot ref:         ${ARDUPILOT_REF}
 Runtime config:        ${CONFIG_FILE}
 Parameter file:        ${PARAM_FILE}
+Tailscale:             installed; authentication pending
+Maps packages:         ${MAPS_PACKAGES[*]}
 Vehicles:              ${#SYSTEM_IDS[@]}
 Router ports:          ${ROUTER_PORTS[*]}
 System IDs:            ${SYSTEM_IDS[*]}
 
 Next steps:
+  Configure Tailscale manually with: sudo tailscale up
   sudo ardupilot-swarm-install-parameters /path/to/drone.parm
   sudo ardupilot-swarm-configure-gcs GROUND_CONTROLLER_ADDRESS 14550
   sudo systemctl start ardupilot-swarm.service
