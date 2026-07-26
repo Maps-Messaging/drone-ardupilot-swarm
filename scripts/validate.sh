@@ -64,7 +64,7 @@ fi
 
 if grep -RniE \
   --exclude=validate.sh \
-  'MapsMessaging|/opt/maps|maps-' \
+  'MapsMessaging|/opt/maps' \
   install.sh update.sh uninstall.sh config scripts systemd; then
   echo "Runtime installation contains organisation-specific naming." >&2
   exit 1
@@ -82,6 +82,36 @@ fi
 
 if ! grep -q "'empy==3.3.4'" install.sh; then
   echo "Installer must install the ArduPilot-required empy==3.3.4 package." >&2
+  exit 1
+fi
+
+if ! grep -q 'pkgs.tailscale.com/stable' install.sh || ! grep -q 'apt-get install -y tailscale' install.sh; then
+  echo "Installer must configure the official Tailscale repository and install the tailscale package." >&2
+  exit 1
+fi
+
+if ! grep -q 'MAPS_PACKAGES=("maps" "maps-apps" "maps-drone")' install.sh; then
+  echo "Installer must define the Maps server, apps, and drone packages." >&2
+  exit 1
+fi
+
+if ! grep -q 'apt-get install -y "${MAPS_PACKAGES\[@\]}"' install.sh; then
+  echo "Installer must install Maps packages through APT without a versioned package URL." >&2
+  exit 1
+fi
+
+if grep -Eq 'maps-drone_[0-9]|maps-drone.*/pool/' install.sh README.md ardupilot-swarm-setup-and-usage.md; then
+  echo "Maps packages must not be pinned to a versioned .deb path." >&2
+  exit 1
+fi
+
+if ! grep -q 'systemctl enable --now tailscaled.service' install.sh; then
+  echo "Installer must enable and start tailscaled.service." >&2
+  exit 1
+fi
+
+if grep -Eq '^[[:space:]]*(sudo[[:space:]]+)?tailscale[[:space:]]+up([[:space:]]|$)' install.sh; then
+  echo "Installer must leave Tailscale authentication for manual post-install configuration." >&2
   exit 1
 fi
 
