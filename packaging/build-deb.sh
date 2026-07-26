@@ -43,11 +43,14 @@ copy_project() {
   install -m 0755 "${ROOT_DIR}/update.sh" "${destination}/update.sh"
   install -m 0755 "${ROOT_DIR}/uninstall.sh" "${destination}/uninstall.sh"
   install -m 0644 "${ROOT_DIR}/VERSION" "${destination}/VERSION"
+  install -m 0644 "${ROOT_DIR}/README.md" "${destination}/README.md"
+  install -m 0644 "${ROOT_DIR}/CHANGELOG.md" "${destination}/CHANGELOG.md"
 
   cp -a "${ROOT_DIR}/config" "${destination}/config"
   cp -a "${ROOT_DIR}/scripts" "${destination}/scripts"
   cp -a "${ROOT_DIR}/systemd" "${destination}/systemd"
   cp -a "${ROOT_DIR}/docs" "${destination}/docs"
+  cp -a "${ROOT_DIR}/patches" "${destination}/patches"
 
   rm -f "${destination}/scripts/validate.sh"
 }
@@ -65,11 +68,10 @@ Architecture: ${PACKAGE_ARCHITECTURE}
 Maintainer: ${PACKAGE_MAINTAINER}
 Installed-Size: ${installed_size}
 Depends: ${PACKAGE_DEPENDS}
-Description: ArduPilot SITL swarm host installer
- Installs the standalone management project used to build MAVLink Router and
- ArduPilot on the target host, install the swarm start and stop scripts, and
- configure their systemd services. Deployment-specific GCS and parameter files
- remain external.
+Description: ArduPlane SITL swarm host installer
+ Installs the management project used to build MAVLink Router and a patched
+ ArduPlane SITL binary on the target host, start three fixed-wing vehicles, and
+ configure their systemd services. Deployment parameter files remain external.
 EOF_CONTROL
 }
 
@@ -85,6 +87,7 @@ validate_package_version
 
 rm -rf "${BUILD_DIR}"
 mkdir -p "${PACKAGE_ROOT}/DEBIAN" "${PACKAGE_ROOT}/usr/share/ardupilot-swarm" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}" "${PACKAGE_ROOT}/usr/bin" "${OUTPUT_DIR}"
+chmod 0755 "${PACKAGE_ROOT}/DEBIAN"
 
 copy_project "${PACKAGE_ROOT}/usr/share/ardupilot-swarm"
 
@@ -95,6 +98,7 @@ install -m 0755 "${ROOT_DIR}/packaging/debian/postinst" "${PACKAGE_ROOT}/DEBIAN/
 install -m 0644 "${ROOT_DIR}/packaging/debian/copyright" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/copyright"
 install -m 0644 "${ROOT_DIR}/packaging/debian/README.Debian" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/README.Debian"
 install -m 0644 "${ROOT_DIR}/docs/mavlink-router.md" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/mavlink-router.md"
+install -m 0644 "${ROOT_DIR}/ardupilot-swarm-setup-and-usage.md" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/setup-and-usage.md"
 
 find "${PACKAGE_ROOT}/usr/share/ardupilot-swarm" -type d -exec chmod 0755 {} +
 find "${PACKAGE_ROOT}/usr/share/ardupilot-swarm" -type f -exec chmod 0644 {} +
@@ -114,6 +118,7 @@ EOF_MANIFEST
 INSTALLED_SIZE="$(du -sk "${PACKAGE_ROOT}" | awk '{print $1}')"
 write_control_file "${PACKAGE_ROOT}/DEBIAN/control" "${INSTALLED_SIZE}"
 chmod 0644 "${PACKAGE_ROOT}/DEBIAN/control"
+chmod g-s "${PACKAGE_ROOT}/DEBIAN"
 
 PACKAGE_FILE="${OUTPUT_DIR}/${PACKAGE_NAME}_${PACKAGE_VERSION}_${PACKAGE_ARCHITECTURE}.deb"
 rm -f "${PACKAGE_FILE}" "${PACKAGE_FILE}.sha256"

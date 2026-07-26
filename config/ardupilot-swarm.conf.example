@@ -9,23 +9,27 @@ ARDUPILOT_REPOSITORY="https://github.com/ArduPilot/ardupilot.git"
 ARDUPILOT_REF="@ARDUPILOT_REF@"
 ARDUPILOT_DIR="@ARDUPILOT_DIR@"
 ARDUPILOT_BUILD_TARGET="plane"
+ARDUPILOT_PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
 
 MAVLINK_ROUTER_REPOSITORY="https://github.com/mavlink-router/mavlink-router.git"
 MAVLINK_ROUTER_REF="@MAVLINK_ROUTER_REF@"
 MAVLINK_ROUTER_DIR="@MAVLINK_ROUTER_DIR@"
 
+VEHICLE_TYPE="ArduPlane"
+VEHICLE_FRAME="plane"
 PARAM_FILE="/etc/ardupilot-swarm/drone.parm"
 
 SESSION_NAME="ardupilot-swarm"
-WINDOW_NAME="drone"
+WINDOW_NAMES=("usv1" "usv2" "usv3")
 
-INSTANCE="10"
-SYSTEM_ID="1"
+INSTANCE_NUMBERS=("10" "11" "12")
+SYSTEM_IDS=("1" "2" "3")
 ROUTER_ADDRESS="127.0.0.1"
-ROUTER_PORT="14480"
+ROUTER_PORTS=("14440" "14450" "14460")
 
-HOME_LAT="59.4673"
-HOME_LON="24.8283"
+# Starting positions are separated by approximately 3 metres.
+HOME_LATITUDES=("59.467300" "59.467327" "59.467300")
+HOME_LONGITUDES=("24.828300" "24.828300" "24.828353")
 HOME_ALT="0.1"
 HOME_HEADING="0"
 

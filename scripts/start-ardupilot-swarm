@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -Eeuo pipefail
 
 CONFIG_FILE="/etc/ardupilot-swarm/ardupilot-swarm.conf"
+SESSION_CREATED=false
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+
+  if (( status != 0 )) && [[ "${SESSION_CREATED}" == "true" ]]; then
+    tmux kill-session -t "${SESSION_NAME}" 2>/dev/null || true
+  fi
+
+  exit "${status}"
+}
+trap cleanup EXIT
 
 if [[ ! -r "${CONFIG_FILE}" ]]; then
   echo "Missing configuration file: ${CONFIG_FILE}" >&2
@@ -16,6 +29,31 @@ SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
 
 export HOME="${RUN_HOME}"
 export PATH="${RUN_HOME}/.local/bin:${ARDUPILOT_DIR}/Tools/autotest:${PATH}"
+
+validate_swarm_config() {
+  local count="${#SYSTEM_IDS[@]}"
+
+  if (( count == 0 )); then
+    echo "The swarm configuration contains no vehicles." >&2
+    exit 1
+  fi
+
+  if (( ${#WINDOW_NAMES[@]} != count ||
+        ${#INSTANCE_NUMBERS[@]} != count ||
+        ${#ROUTER_PORTS[@]} != count ||
+        ${#HOME_LATITUDES[@]} != count ||
+        ${#HOME_LONGITUDES[@]} != count )); then
+    echo "Swarm configuration arrays must contain the same number of entries." >&2
+    exit 1
+  fi
+}
+
+validate_swarm_config
+
+if [[ "${VEHICLE_TYPE}" != "ArduPlane" || "${VEHICLE_FRAME}" != "plane" ]]; then
+  echo "This package requires ArduPlane firmware with the fixed-wing plane frame." >&2
+  exit 1
+fi
 
 if [[ ! -d "${ARDUPILOT_DIR}" ]]; then
   echo "Missing ArduPilot directory: ${ARDUPILOT_DIR}" >&2
@@ -43,34 +81,72 @@ if tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
   exit 0
 fi
 
-command=(
-  "${SIM_VEHICLE}"
-  -v ArduPlane
-  --no-rebuild
-  --instance "${INSTANCE}"
-  --sysid "${SYSTEM_ID}"
-)
+build_command() {
+  local index="$1"
+  local location="${HOME_LATITUDES[$index]},${HOME_LONGITUDES[$index]},${HOME_ALT},${HOME_HEADING}"
+  local command=(
+    "${SIM_VEHICLE}"
+    -v "${VEHICLE_TYPE}"
+    -f "${VEHICLE_FRAME}"
+    --no-rebuild
+    --instance "${INSTANCE_NUMBERS[$index]}"
+    --sysid "${SYSTEM_IDS[$index]}"
+  )
 
-if [[ "${WIPE_PARAMETERS}" == "true" ]]; then
-  command+=(-w)
-fi
+  if [[ "${WIPE_PARAMETERS}" == "true" ]]; then
+    command+=(-w)
+  fi
 
-command+=(
-  "--add-param-file=${PARAM_FILE}"
-  "--custom-location=${HOME_LAT},${HOME_LON},${HOME_ALT},${HOME_HEADING}"
-  "--out=udp:${ROUTER_ADDRESS}:${ROUTER_PORT}"
-)
+  command+=(
+    "--add-param-file=${PARAM_FILE}"
+    "--custom-location=${location}"
+    "--out=udp:${ROUTER_ADDRESS}:${ROUTER_PORTS[$index]}"
+  )
 
-printf -v tmux_command '%q ' "${command[@]}"
+  printf '%q ' "${command[@]}"
+}
 
-tmux new-session \
-  -d \
-  -s "${SESSION_NAME}" \
-  -n "${WINDOW_NAME}" \
-  -c "${ARDUPILOT_DIR}" \
-  "${tmux_command}"
+start_vehicle() {
+  local index="$1"
+  local window_name="${WINDOW_NAMES[$index]}"
+  local tmux_command
 
-echo "ArduPilot swarm started in tmux session: ${SESSION_NAME}"
+  tmux_command="$(build_command "${index}")"
+
+  if (( index == 0 )); then
+    tmux new-session \
+      -d \
+      -s "${SESSION_NAME}" \
+      -n "${window_name}" \
+      -c "${ARDUPILOT_DIR}" \
+      "${tmux_command}"
+    SESSION_CREATED=true
+  else
+    tmux new-window \
+      -d \
+      -t "${SESSION_NAME}" \
+      -n "${window_name}" \
+      -c "${ARDUPILOT_DIR}" \
+      "${tmux_command}"
+  fi
+
+  echo "Started ${window_name}:"
+  echo "  firmware:    ${VEHICLE_TYPE}"
+  echo "  frame:       ${VEHICLE_FRAME}"
+  echo "  instance:    ${INSTANCE_NUMBERS[$index]}"
+  echo "  system ID:   ${SYSTEM_IDS[$index]}"
+  echo "  router port: ${ROUTER_PORTS[$index]}"
+  echo "  location:    ${HOME_LATITUDES[$index]},${HOME_LONGITUDES[$index]}"
+}
+
+for index in "${!SYSTEM_IDS[@]}"; do
+  start_vehicle "${index}"
+done
+
+trap - EXIT
+
+echo
+echo "Started ${#SYSTEM_IDS[@]} ArduPlane fixed-wing SITL vehicles."
+echo "tmux session: ${SESSION_NAME}"
 echo "Parameters loaded from: ${PARAM_FILE}"
-echo "MAVLink output: udp:${ROUTER_ADDRESS}:${ROUTER_PORT}"
 echo "Attach with: tmux attach -t ${SESSION_NAME}"

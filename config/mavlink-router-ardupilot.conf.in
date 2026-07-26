@@ -1,7 +1,7 @@
 # Managed by the ardupilot-swarm installer.
-# ArduPilot sends the drone MAVLink stream to this local endpoint.
+# ArduPilot SITL sends one MAVLink stream to each local endpoint.
 
-[UdpEndpoint drone]
+[UdpEndpoint @ENDPOINT_NAME@]
 Mode = Server
 Address = @ROUTER_ADDRESS@
 Port = @ROUTER_PORT@

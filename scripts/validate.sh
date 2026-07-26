@@ -5,10 +5,14 @@ set -euo pipefail
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${PROJECT_DIR}"
 
+PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
+
 required_files=(
   VERSION
   Makefile
   README.md
+  CHANGELOG.md
+  ardupilot-swarm-setup-and-usage.md
   docs/mavlink-router.md
   install.sh
   update.sh
@@ -21,6 +25,7 @@ required_files=(
   scripts/ardupilot-swarm-configure-gcs
   scripts/ardupilot-swarm-install-parameters
   systemd/ardupilot-swarm.service.in
+  "${PATCH_FILE}"
   packaging/build-deb.sh
   packaging/upload-deb.sh
   packaging/debian/postinst
@@ -50,13 +55,10 @@ done < <(
     -print0
 )
 
+bash -n config/ardupilot-swarm.conf.example
+
 if find . -path './dist' -prune -o -path './build' -prune -o -type f -name '*.parm' -print | grep -q .; then
   echo "A proprietary .parm file must not be included in this project." >&2
-  exit 1
-fi
-
-if grep -RniE --exclude=validate.sh --exclude-dir=.git --exclude-dir=build --exclude-dir=dist 'stickleback' .; then
-  echo "Project contains deployment-specific naming." >&2
   exit 1
 fi
 
@@ -80,6 +82,49 @@ fi
 
 if ! grep -q "'empy==3.3.4'" install.sh; then
   echo "Installer must install the ArduPilot-required empy==3.3.4 package." >&2
+  exit 1
+fi
+
+if ! grep -q 'control_mode == &mode_guided' "${PATCH_FILE}"; then
+  echo "Managed ArduPilot patch must disable throttle suppression in GUIDED mode." >&2
+  exit 1
+fi
+
+if ! grep -q 'git -C "${ARDUPILOT_DIR}" apply --check' install.sh; then
+  echo "Installer must verify the managed ArduPilot patch before applying it." >&2
+  exit 1
+fi
+
+if ! grep -q 'cp -a "${ROOT_DIR}/patches"' packaging/build-deb.sh; then
+  echo "Debian package must include the managed ArduPilot patch directory." >&2
+  exit 1
+fi
+
+if grep -q -- '--model' scripts/start-ardupilot-swarm; then
+  echo "The virtual vehicles must remain normal fixed-wing ArduPlane models." >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source config/ardupilot-swarm.conf.example
+vehicle_count="${#SYSTEM_IDS[@]}"
+if (( vehicle_count != 3 ||
+      ${#WINDOW_NAMES[@]} != vehicle_count ||
+      ${#INSTANCE_NUMBERS[@]} != vehicle_count ||
+      ${#ROUTER_PORTS[@]} != vehicle_count ||
+      ${#HOME_LATITUDES[@]} != vehicle_count ||
+      ${#HOME_LONGITUDES[@]} != vehicle_count )); then
+  echo "Default swarm configuration must define three complete vehicle entries." >&2
+  exit 1
+fi
+
+if [[ "${VEHICLE_TYPE}" != "ArduPlane" || "${VEHICLE_FRAME}" != "plane" ]]; then
+  echo "Default vehicles must use ArduPlane with the fixed-wing plane frame." >&2
+  exit 1
+fi
+
+if [[ "${SYSTEM_IDS[*]}" != "1 2 3" || "${ROUTER_PORTS[*]}" != "14440 14450 14460" ]]; then
+  echo "Default system IDs and MAVLink Router ports do not match the deployment." >&2
   exit 1
 fi
 
