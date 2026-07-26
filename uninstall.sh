@@ -35,6 +35,7 @@ fi
 "${SUDO[@]}" rm -f /usr/local/bin/ardupilot-swarm-install-parameters
 "${SUDO[@]}" rm -f /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
 "${SUDO[@]}" rm -f /etc/mavlink-router/config.d/30-maps.conf
+"${SUDO[@]}" rm -f /etc/mavlink-router/config.d/50-maps.conf
 "${SUDO[@]}" rm -f /etc/mavlink-router/config.d/90-ground-controller.conf
 "${SUDO[@]}" rm -rf /usr/local/share/ardupilot-swarm
 
