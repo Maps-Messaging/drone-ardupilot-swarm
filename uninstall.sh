@@ -34,6 +34,7 @@ fi
 "${SUDO[@]}" rm -f /usr/local/bin/ardupilot-swarm-configure-gcs
 "${SUDO[@]}" rm -f /usr/local/bin/ardupilot-swarm-install-parameters
 "${SUDO[@]}" rm -f /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
+"${SUDO[@]}" rm -f /etc/mavlink-router/config.d/30-maps.conf
 "${SUDO[@]}" rm -f /etc/mavlink-router/config.d/90-ground-controller.conf
 "${SUDO[@]}" rm -rf /usr/local/share/ardupilot-swarm
 
@@ -46,6 +47,7 @@ if [[ "${PURGE}" == "true" ]]; then
     rm -rf "${MAVLINK_ROUTER_DIR}"
   fi
   rm -rf "${RUN_HOME}/.cache/ardupilot-swarm"
+  rm -rf "${RUN_HOME}/.local/state/ardupilot-swarm"
 else
   echo "Preserved /etc/ardupilot-swarm and both upstream source trees."
 fi

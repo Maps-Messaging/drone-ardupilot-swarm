@@ -1,7 +1,26 @@
 #!/bin/sh
 set -e
 
+PROJECT_ROOT="/usr/share/ardupilot-swarm"
+MAPS_ENDPOINT_SOURCE="${PROJECT_ROOT}/config/mavlink-router-maps.conf"
+MAPS_ENDPOINT_TARGET="/etc/mavlink-router/config.d/30-maps.conf"
+
 if [ "${1:-}" = "configure" ]; then
+  install -d -m 0755 /etc/mavlink-router/config.d
+  install -m 0644 "${MAPS_ENDPOINT_SOURCE}" "${MAPS_ENDPOINT_TARGET}"
+
+  if [ -f /etc/ardupilot-swarm/ardupilot-swarm.conf ]; then
+    install -m 0755 "${PROJECT_ROOT}/scripts/start-ardupilot-swarm" /usr/local/bin/start-ardupilot-swarm
+    install -m 0755 "${PROJECT_ROOT}/scripts/ardupilot-swarm-configure-gcs" /usr/local/bin/ardupilot-swarm-configure-gcs
+  fi
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+    if systemctl is-active --quiet mavlink-router.service; then
+      systemctl restart mavlink-router.service || true
+    fi
+  fi
+
   cat <<'MESSAGE'
 ArduPilot swarm management tools are installed.
 
@@ -9,9 +28,13 @@ Run the host installer as the account that will own and run ArduPilot:
 
   ardupilot-swarm-install
 
-The installer builds MAVLink Router and ArduPilot from their upstream Git
-repositories, installs the runtime scripts and systemd units, and configures
-the local MAVLink Router endpoint.
+The package installs the local Maps MAVLink Router endpoint at:
+
+  /etc/mavlink-router/config.d/30-maps.conf
+
+Existing host installations also receive the latest swarm startup and ground
+controller helper scripts. Restart ardupilot-swarm.service after upgrading if
+it was already installed and configured.
 MESSAGE
 fi
 

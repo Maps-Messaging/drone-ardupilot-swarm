@@ -6,6 +6,7 @@ PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${PROJECT_DIR}"
 
 PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
+MAPS_ROUTER_FILE="config/mavlink-router-maps.conf"
 
 required_files=(
   VERSION
@@ -20,6 +21,7 @@ required_files=(
   config/ardupilot-swarm.conf.example
   config/mavlink-router-main.conf
   config/mavlink-router-ardupilot.conf.in
+  "${MAPS_ROUTER_FILE}"
   scripts/start-ardupilot-swarm
   scripts/stop-ardupilot-swarm
   scripts/ardupilot-swarm-configure-gcs
@@ -55,6 +57,7 @@ done < <(
     -print0
 )
 
+sh -n packaging/debian/postinst
 bash -n config/ardupilot-swarm.conf.example
 
 if find . -path './dist' -prune -o -path './build' -prune -o -type f -name '*.parm' -print | grep -q .; then
@@ -112,6 +115,37 @@ fi
 
 if grep -Eq '^[[:space:]]*(sudo[[:space:]]+)?tailscale[[:space:]]+up([[:space:]]|$)' install.sh; then
   echo "Installer must leave Tailscale authentication for manual post-install configuration." >&2
+  exit 1
+fi
+
+if ! grep -q '^\[UdpEndpoint maps\]$' "${MAPS_ROUTER_FILE}" ||
+   ! grep -q '^Mode = Normal$' "${MAPS_ROUTER_FILE}" ||
+   ! grep -q '^Address = 127.0.0.1$' "${MAPS_ROUTER_FILE}" ||
+   ! grep -q '^Port = 14550$' "${MAPS_ROUTER_FILE}"; then
+  echo "Maps MAVLink Router endpoint must forward to 127.0.0.1:14550." >&2
+  exit 1
+fi
+
+if ! grep -q 'mavlink-router-maps.conf' packaging/debian/postinst ||
+   ! grep -q '/etc/mavlink-router/config.d/30-maps.conf' packaging/debian/postinst; then
+  echo "Debian post-install must install the managed Maps router endpoint." >&2
+  exit 1
+fi
+
+if ! grep -q 'venv-ardupilot' scripts/start-ardupilot-swarm ||
+   ! grep -q 'VIRTUAL_ENV' scripts/start-ardupilot-swarm; then
+  echo "Swarm startup must detect and activate the ArduPilot Python virtual environment." >&2
+  exit 1
+fi
+
+if ! grep -q 'pane_dead' scripts/start-ardupilot-swarm ||
+   ! grep -q '.local/state/ardupilot-swarm' scripts/start-ardupilot-swarm; then
+  echo "Swarm startup must verify SITL processes and retain per-vehicle logs." >&2
+  exit 1
+fi
+
+if ! grep -q '/etc/mavlink-router/config.d/30-maps.conf' uninstall.sh; then
+  echo "Uninstall must remove the managed Maps router endpoint." >&2
   exit 1
 fi
 

@@ -58,13 +58,24 @@ The current routing model is:
 - `usv3` sends MAVLink to `127.0.0.1:14460`
 - `mavlink-router` listens on those three local UDP server endpoints
 - `mavlink-router` forwards the combined stream to the Maps server on `127.0.0.1:14550`
-- a separate manually configured endpoint can forward data to QGroundControl, for example to a Tailscale IP later
+- a separate manually configured endpoint can forward data to QGroundControl or another controller
+
+The package installs the Maps endpoint as:
+
+```ini
+[UdpEndpoint maps]
+Mode = Normal
+Address = 127.0.0.1
+Port = 14550
+```
+
+`Mode = Normal` is used because Maps is the UDP server listening on localhost and MAVLink Router connects and forwards traffic to it.
 
 So:
 
 - ports `14440`, `14450`, and `14460` are **router inputs from the drones**
-- port `14550` is the **Maps MAVLink input**
-- the remote QGroundControl endpoint is **not hard-coded** and is intended to be added manually after Tailscale is configured
+- `127.0.0.1:14550` is the **Maps MAVLink destination**
+- the remote ground-controller endpoint is **not hard-coded** and is added separately
 
 ## Managed ArduPilot patch
 
@@ -119,6 +130,8 @@ The installed host is intended to come up automatically.
 - `maps.service` provides the Maps server
 - `mavlink-router.service` starts independently and is also a dependency of `ardupilot-swarm.service`
 - `ardupilot-swarm.service` launches the three ArduPlane instances into tmux after the router is available
+- on Ubuntu 24.04 and other venv-based installations, the start wrapper detects and activates ArduPilot's Python virtual environment before starting `sim_vehicle.py`
+- the start wrapper verifies that all three tmux panes remain alive and fails the systemd start if a vehicle exits immediately
 - `tailscaled.service` starts, but tailnet authentication remains manual until the operator runs `sudo tailscale up`
 
 ## Installation flow
@@ -173,10 +186,10 @@ sudo ardupilot-swarm-install-parameters /path/to/drone.parm
 
 ### 3. Configure any remote MAVLink destination
 
-For example, after Tailscale is configured, point QGroundControl at the server’s Tailscale IP or add a router endpoint for it.
+For example, add a QGroundControl or other controller destination:
 
 ```bash
-sudo ardupilot-swarm-configure-gcs <tailscale-or-other-ip> 14550
+sudo ardupilot-swarm-configure-gcs <controller-ip-or-hostname> 14550
 ```
 
 ### 4. Start or verify the swarm
@@ -194,6 +207,14 @@ Attach to the tmux session if required:
 tmux attach -t ardupilot-swarm
 ```
 
+If startup fails, inspect the persistent logs:
+
+```bash
+tail -n 100 ~/.local/state/ardupilot-swarm/usv1.log
+tail -n 100 ~/.local/state/ardupilot-swarm/usv2.log
+tail -n 100 ~/.local/state/ardupilot-swarm/usv3.log
+```
+
 ## Runtime files
 
 Important installed paths:
@@ -203,7 +224,9 @@ Important installed paths:
 | `/etc/ardupilot-swarm/ardupilot-swarm.conf` | runtime configuration |
 | `/etc/ardupilot-swarm/drone.parm` | external ArduPilot parameter file |
 | `/etc/mavlink-router/config.d/20-ardupilot-swarm.conf` | three local router inputs |
+| `/etc/mavlink-router/config.d/30-maps.conf` | Maps destination on `127.0.0.1:14550` |
 | `/etc/mavlink-router/config.d/90-ground-controller.conf` | optional remote endpoint |
+| `~/.local/state/ardupilot-swarm/usv*.log` | persistent SITL startup and runtime logs |
 | `/usr/local/bin/start-ardupilot-swarm` | start wrapper |
 | `/usr/local/bin/stop-ardupilot-swarm` | stop wrapper |
 | `/etc/systemd/system/ardupilot-swarm.service` | swarm systemd unit |
