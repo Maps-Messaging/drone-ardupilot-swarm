@@ -26,9 +26,33 @@ fi
 source "${CONFIG_FILE}"
 
 SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
+LOG_DIR="${RUN_HOME}/.local/state/ardupilot-swarm"
 
 export HOME="${RUN_HOME}"
 export PATH="${RUN_HOME}/.local/bin:${ARDUPILOT_DIR}/Tools/autotest:${PATH}"
+export PYTHONUNBUFFERED=1
+
+activate_ardupilot_venv() {
+  local candidate
+  local candidates=(
+    "${ARDUPILOT_DIR}/venv-ardupilot"
+    "${ARDUPILOT_DIR}/venv"
+    "${ARDUPILOT_DIR}/.venv"
+    "${RUN_HOME}/venv-ardupilot"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "${candidate}/bin/python3" ]]; then
+      export VIRTUAL_ENV="${candidate}"
+      export PATH="${candidate}/bin:${PATH}"
+      unset PYTHONHOME || true
+      echo "Using ArduPilot Python environment: ${candidate}"
+      return 0
+    fi
+  done
+
+  echo "No ArduPilot Python virtual environment was found; using system Python."
+}
 
 validate_swarm_config() {
   local count="${#SYSTEM_IDS[@]}"
@@ -49,6 +73,8 @@ validate_swarm_config() {
 }
 
 validate_swarm_config
+activate_ardupilot_venv
+mkdir -p "${LOG_DIR}"
 
 if [[ "${VEHICLE_TYPE}" != "ArduPlane" || "${VEHICLE_FRAME}" != "plane" ]]; then
   echo "This package requires ArduPlane firmware with the fixed-wing plane frame." >&2
@@ -109,9 +135,12 @@ build_command() {
 start_vehicle() {
   local index="$1"
   local window_name="${WINDOW_NAMES[$index]}"
+  local log_file="${LOG_DIR}/${window_name}.log"
   local tmux_command
 
+  : > "${log_file}"
   tmux_command="$(build_command "${index}")"
+  tmux_command+=" >> $(printf '%q' "${log_file}") 2>&1"
 
   if (( index == 0 )); then
     tmux new-session \
@@ -119,7 +148,7 @@ start_vehicle() {
       -s "${SESSION_NAME}" \
       -n "${window_name}" \
       -c "${ARDUPILOT_DIR}" \
-      "${tmux_command}"
+      "sleep infinity"
     SESSION_CREATED=true
   else
     tmux new-window \
@@ -127,8 +156,11 @@ start_vehicle() {
       -t "${SESSION_NAME}" \
       -n "${window_name}" \
       -c "${ARDUPILOT_DIR}" \
-      "${tmux_command}"
+      "sleep infinity"
   fi
+
+  tmux set-window-option -t "${SESSION_NAME}:${window_name}" remain-on-exit on
+  tmux respawn-pane -k -t "${SESSION_NAME}:${window_name}" "${tmux_command}"
 
   echo "Started ${window_name}:"
   echo "  firmware:    ${VEHICLE_TYPE}"
@@ -137,16 +169,47 @@ start_vehicle() {
   echo "  system ID:   ${SYSTEM_IDS[$index]}"
   echo "  router port: ${ROUTER_PORTS[$index]}"
   echo "  location:    ${HOME_LATITUDES[$index]},${HOME_LONGITUDES[$index]}"
+  echo "  log:         ${log_file}"
+}
+
+verify_vehicle_startup() {
+  local index
+  local window_name
+  local log_file
+  local pane_dead
+  local failed=0
+
+  sleep 5
+
+  for index in "${!SYSTEM_IDS[@]}"; do
+    window_name="${WINDOW_NAMES[$index]}"
+    log_file="${LOG_DIR}/${window_name}.log"
+    pane_dead="$(tmux display-message -p -t "${SESSION_NAME}:${window_name}" '#{pane_dead}')"
+
+    if [[ "${pane_dead}" == "1" ]]; then
+      echo "${window_name} exited during startup. Recent output:" >&2
+      tail -n 80 "${log_file}" >&2 || true
+      failed=1
+    fi
+  done
+
+  if (( failed != 0 )); then
+    echo "One or more ArduPlane SITL vehicles failed to stay running." >&2
+    echo "Full logs are under: ${LOG_DIR}" >&2
+    exit 1
+  fi
 }
 
 for index in "${!SYSTEM_IDS[@]}"; do
   start_vehicle "${index}"
 done
 
+verify_vehicle_startup
 trap - EXIT
 
 echo
 echo "Started ${#SYSTEM_IDS[@]} ArduPlane fixed-wing SITL vehicles."
 echo "tmux session: ${SESSION_NAME}"
 echo "Parameters loaded from: ${PARAM_FILE}"
+echo "Logs: ${LOG_DIR}"
 echo "Attach with: tmux attach -t ${SESSION_NAME}"
