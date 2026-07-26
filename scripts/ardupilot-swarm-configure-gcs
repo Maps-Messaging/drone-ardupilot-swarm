@@ -54,7 +54,7 @@ esac
 ADDRESS="$1"
 PORT="${2:-14550}"
 
-if [[ ! "${ADDRESS}" =~ ^[A-Za-z0-9._:%\[\]-]+$ ]]; then
+if [[ ! "${ADDRESS}" =~ ^[A-Za-z0-9._:%-]+$ ]]; then
   echo "Invalid ground controller address: ${ADDRESS}" >&2
   exit 1
 fi
