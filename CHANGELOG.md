@@ -11,6 +11,8 @@
 - Continues loading the externally supplied `/etc/ardupilot-swarm/drone.parm` file unchanged for every vehicle.
 - Added migration of the previous scalar single-vehicle runtime configuration to the new three-vehicle array format.
 - Added package and validation checks for the patch, fixed-wing frame, system IDs, router ports, and array lengths.
+- Added installation of the official Tailscale package and service while leaving tailnet authentication for manual post-install configuration.
+- Added installation of the latest available `maps`, `maps-apps`, and `maps-drone` packages from the configured APT repository without pinning package versions.
 
 ## 0.2.3
 
