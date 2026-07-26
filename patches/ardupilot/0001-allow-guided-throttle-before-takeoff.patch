@@ -1,0 +1,19 @@
+diff --git a/ArduPlane/servos.cpp b/ArduPlane/servos.cpp
+index db385a6..7359939 100644
+--- a/ArduPlane/servos.cpp
++++ b/ArduPlane/servos.cpp
+@@ -8,6 +8,14 @@ bool Plane::suppress_throttle(void)
+         return true;
+     }
+ 
++    // Surface vehicles using ArduPlane remain near home altitude and below the
++    // normal fixed-wing launch-speed threshold. GUIDED mode must therefore not
++    // use fixed-wing launch throttle suppression.
++    if (control_mode == &mode_guided) {
++        throttle_suppressed = false;
++        return false;
++    }
++
+     if (!throttle_suppressed) {
+         // we've previously met a condition for unsupressing the throttle
+         return false;

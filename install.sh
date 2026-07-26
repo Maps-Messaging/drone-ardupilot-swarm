@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -Eeuo pipefail
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="/etc/ardupilot-swarm"
@@ -10,15 +10,34 @@ ROUTER_DROPIN_DIR="${ROUTER_DIR}/config.d"
 ROUTER_ENDPOINT_FILE="${ROUTER_DROPIN_DIR}/20-ardupilot-swarm.conf"
 SERVICE_FILE="/etc/systemd/system/ardupilot-swarm.service"
 SHARE_DIR="/usr/local/share/ardupilot-swarm"
+TAILSCALE_KEYRING_FILE="/usr/share/keyrings/tailscale-archive-keyring.gpg"
+TAILSCALE_LIST_FILE="/etc/apt/sources.list.d/tailscale.list"
+MAPS_PACKAGES=("maps" "maps-apps" "maps-drone")
 
 ARDUPILOT_REPOSITORY="https://github.com/ArduPilot/ardupilot.git"
 ARDUPILOT_REF="master"
 ARDUPILOT_DIR="${HOME}/ardupilot"
 ARDUPILOT_BUILD_TARGET="plane"
+ARDUPILOT_PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
 
 MAVLINK_ROUTER_REPOSITORY="https://github.com/mavlink-router/mavlink-router.git"
 MAVLINK_ROUTER_REF="v4"
 MAVLINK_ROUTER_DIR="${HOME}/mavlink-router"
+
+VEHICLE_TYPE="ArduPlane"
+VEHICLE_FRAME="plane"
+PARAM_FILE="/etc/ardupilot-swarm/drone.parm"
+SESSION_NAME="ardupilot-swarm"
+WINDOW_NAMES=("usv1" "usv2" "usv3")
+INSTANCE_NUMBERS=("10" "11" "12")
+SYSTEM_IDS=("1" "2" "3")
+ROUTER_ADDRESS="127.0.0.1"
+ROUTER_PORTS=("14440" "14450" "14460")
+HOME_LATITUDES=("59.467300" "59.467327" "59.467300")
+HOME_LONGITUDES=("24.828300" "24.828300" "24.828353")
+HOME_ALT="0.1"
+HOME_HEADING="0"
+WIPE_PARAMETERS="true"
 
 ARDUPILOT_REF_SET=false
 ARDUPILOT_DIR_SET=false
@@ -26,10 +45,27 @@ MAVLINK_ROUTER_REF_SET=false
 MAVLINK_ROUTER_DIR_SET=false
 REFRESH_PREREQUISITES=false
 SKIP_BUILD=false
+CONFIG_NEEDS_MIGRATION=false
+PATCH_APPLIED=false
 TEMP_CONFIG=""
 TEMP_SERVICE=""
 TEMP_ROUTER=""
-trap 'rm -f "${TEMP_CONFIG}" "${TEMP_SERVICE}" "${TEMP_ROUTER}"' EXIT
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+
+  if [[ "${PATCH_APPLIED}" == "true" && -d "${ARDUPILOT_DIR}/.git" ]]; then
+    if ! git -C "${ARDUPILOT_DIR}" apply --reverse "${PROJECT_DIR}/${ARDUPILOT_PATCH_FILE}"; then
+      echo "WARNING: Failed to remove the managed ArduPilot patch from ${ARDUPILOT_DIR}." >&2
+      status=1
+    fi
+  fi
+
+  rm -f "${TEMP_CONFIG}" "${TEMP_SERVICE}" "${TEMP_ROUTER}"
+  exit "${status}"
+}
+trap cleanup EXIT
 
 usage() {
   cat <<'USAGE'
@@ -121,6 +157,10 @@ REQUESTED_MAVLINK_ROUTER_REF="${MAVLINK_ROUTER_REF}"
 REQUESTED_MAVLINK_ROUTER_DIR="${MAVLINK_ROUTER_DIR}"
 
 if [[ -r "${CONFIG_FILE}" ]]; then
+  if ! grep -q '^INSTANCE_NUMBERS=' "${CONFIG_FILE}"; then
+    CONFIG_NEEDS_MIGRATION=true
+  fi
+
   # shellcheck source=/dev/null
   source "${CONFIG_FILE}"
 
@@ -146,7 +186,100 @@ fi
 ARDUPILOT_DIR="$(realpath -m "${ARDUPILOT_DIR}")"
 MAVLINK_ROUTER_DIR="$(realpath -m "${MAVLINK_ROUTER_DIR}")"
 MAVLINK_ROUTER_BUILD_DIR="${RUN_HOME}/.cache/ardupilot-swarm/mavlink-router-build"
+ARDUPILOT_PATCH_PATH="${PROJECT_DIR}/${ARDUPILOT_PATCH_FILE}"
 SERVICE_WAS_ACTIVE=false
+
+if [[ ! -f "${ARDUPILOT_PATCH_PATH}" ]]; then
+  echo "Missing managed ArduPilot patch: ${ARDUPILOT_PATCH_PATH}" >&2
+  exit 1
+fi
+
+install_maps_packages() {
+  local package
+  local unavailable=()
+
+  sudo apt-get update
+
+  for package in "${MAPS_PACKAGES[@]}"; do
+    if ! apt-cache show "${package}" >/dev/null 2>&1; then
+      unavailable+=("${package}")
+    fi
+  done
+
+  if (( ${#unavailable[@]} > 0 )); then
+    echo "The following Maps packages are not available from the configured APT sources: ${unavailable[*]}" >&2
+    echo "Configure the Maps Messaging APT repository before running this installer." >&2
+    exit 1
+  fi
+
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${MAPS_PACKAGES[@]}"
+
+  for package in "${MAPS_PACKAGES[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "${package}" 2>/dev/null | grep -q '^install ok installed$'; then
+      echo "Maps package was not installed successfully: ${package}" >&2
+      exit 1
+    fi
+  done
+
+  echo "Installed Maps packages: ${MAPS_PACKAGES[*]}"
+}
+
+install_tailscale() {
+  local distribution
+  local codename
+  local repository_base
+
+  case "${ID:-}" in
+    ubuntu)
+      distribution="ubuntu"
+      codename="${VERSION_CODENAME:-}"
+      ;;
+    debian)
+      distribution="debian"
+      codename="${VERSION_CODENAME:-}"
+      ;;
+    *)
+      if [[ "${ID_LIKE:-}" == *ubuntu* ]]; then
+        distribution="ubuntu"
+        codename="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
+      elif [[ "${ID_LIKE:-}" == *debian* ]]; then
+        distribution="debian"
+        codename="${DEBIAN_CODENAME:-${VERSION_CODENAME:-}}"
+      else
+        echo "Cannot determine the Tailscale package repository for ${PRETTY_NAME:-this system}." >&2
+        exit 1
+      fi
+      ;;
+  esac
+
+  if [[ -z "${codename}" ]]; then
+    echo "Cannot determine the Debian or Ubuntu codename required by the Tailscale repository." >&2
+    exit 1
+  fi
+
+  repository_base="https://pkgs.tailscale.com/stable/${distribution}/${codename}"
+
+  sudo install -d -m 0755 /usr/share/keyrings /etc/apt/sources.list.d
+  curl -fsSL "${repository_base}.noarmor.gpg" | sudo tee "${TAILSCALE_KEYRING_FILE}" >/dev/null
+  curl -fsSL "${repository_base}.tailscale-keyring.list" | sudo tee "${TAILSCALE_LIST_FILE}" >/dev/null
+
+  sudo apt-get update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale
+  sudo systemctl enable --now tailscaled.service
+
+  if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Tailscale was installed, but the tailscale command was not found." >&2
+    exit 1
+  fi
+
+  if ! systemctl is-active --quiet tailscaled.service; then
+    echo "Tailscale was installed, but tailscaled.service is not active." >&2
+    exit 1
+  fi
+
+  echo "Tailscale installed and tailscaled.service started."
+  echo "Tailnet authentication is intentionally left for post-install configuration."
+}
 
 if systemctl is-active --quiet ardupilot-swarm.service 2>/dev/null; then
   SERVICE_WAS_ACTIVE=true
@@ -160,6 +293,8 @@ fi
 
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  ca-certificates \
+  curl \
   git \
   tmux \
   meson \
@@ -169,6 +304,9 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   g++ \
   python3-pip \
   systemd
+
+install_tailscale
+install_maps_packages
 
 python3 -m pip install \
   --user \
@@ -208,6 +346,41 @@ checkout_repository() {
 
   git -C "${directory}" submodule sync --recursive
   git -C "${directory}" submodule update --init --recursive
+}
+
+apply_ardupilot_patch() {
+  local target="${ARDUPILOT_DIR}/ArduPlane/servos.cpp"
+  local marker="GUIDED mode must therefore not"
+
+  if git -C "${ARDUPILOT_DIR}" apply --check "${ARDUPILOT_PATCH_PATH}"; then
+    git -C "${ARDUPILOT_DIR}" apply "${ARDUPILOT_PATCH_PATH}"
+    PATCH_APPLIED=true
+    echo "Applied managed ArduPlane GUIDED throttle patch."
+    return
+  fi
+
+  if [[ -f "${target}" ]] && grep -q "${marker}" "${target}"; then
+    echo "ArduPlane already contains the GUIDED throttle behaviour; no patch was required."
+    return
+  fi
+
+  echo "The managed ArduPlane GUIDED throttle patch does not apply to ${ARDUPILOT_REF}." >&2
+  echo "Update the patch or select a compatible ArduPilot ref before building." >&2
+  exit 1
+}
+
+remove_ardupilot_patch() {
+  if [[ "${PATCH_APPLIED}" != "true" ]]; then
+    return
+  fi
+
+  git -C "${ARDUPILOT_DIR}" apply --reverse "${ARDUPILOT_PATCH_PATH}"
+  PATCH_APPLIED=false
+
+  if [[ -n "$(git -C "${ARDUPILOT_DIR}" status --porcelain)" ]]; then
+    echo "ArduPilot working tree is not clean after removing the managed patch." >&2
+    exit 1
+  fi
 }
 
 checkout_repository \
@@ -253,11 +426,13 @@ if [[ ! -f "${PREREQUISITE_MARKER}" || "${REFRESH_PREREQUISITES}" == "true" ]]; 
 fi
 
 if [[ "${SKIP_BUILD}" == "false" ]]; then
+  apply_ardupilot_patch
   (
     cd "${ARDUPILOT_DIR}"
     ./waf configure --board sitl
     ./waf "${ARDUPILOT_BUILD_TARGET}"
   )
+  remove_ardupilot_patch
 fi
 
 sudo install -d -m 0755 -o root -g root "${CONFIG_DIR}"
@@ -294,6 +469,30 @@ else
     fi
   }
 
+  if [[ "${CONFIG_NEEDS_MIGRATION}" == "true" ]]; then
+    backup_file="${CONFIG_FILE}.pre-0.3.0"
+    if [[ ! -e "${backup_file}" ]]; then
+      sudo cp -a "${CONFIG_FILE}" "${backup_file}"
+    fi
+
+    cat <<'EOF_MIGRATION' | sudo tee -a "${CONFIG_FILE}" >/dev/null
+
+# Added by the 0.3.0 three-vehicle configuration migration.
+VEHICLE_TYPE="ArduPlane"
+VEHICLE_FRAME="plane"
+ARDUPILOT_PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
+WINDOW_NAMES=("usv1" "usv2" "usv3")
+INSTANCE_NUMBERS=("10" "11" "12")
+SYSTEM_IDS=("1" "2" "3")
+ROUTER_PORTS=("14440" "14450" "14460")
+HOME_LATITUDES=("59.467300" "59.467327" "59.467300")
+HOME_LONGITUDES=("24.828300" "24.828300" "24.828353")
+EOF_MIGRATION
+
+    echo "Migrated the runtime configuration to three ArduPlane vehicles."
+    echo "Previous configuration: ${backup_file}"
+  fi
+
   if [[ "${ARDUPILOT_REF_SET}" == "true" ]]; then
     set_config_value ARDUPILOT_REF "${ARDUPILOT_REF}"
   fi
@@ -322,6 +521,26 @@ fi
 # shellcheck source=/dev/null
 source "${CONFIG_FILE}"
 
+validate_swarm_config() {
+  local count="${#SYSTEM_IDS[@]}"
+
+  if (( count == 0 )); then
+    echo "The swarm configuration contains no vehicles." >&2
+    exit 1
+  fi
+
+  if (( ${#WINDOW_NAMES[@]} != count ||
+        ${#INSTANCE_NUMBERS[@]} != count ||
+        ${#ROUTER_PORTS[@]} != count ||
+        ${#HOME_LATITUDES[@]} != count ||
+        ${#HOME_LONGITUDES[@]} != count )); then
+    echo "Swarm configuration arrays must contain the same number of entries." >&2
+    exit 1
+  fi
+}
+
+validate_swarm_config
+
 TEMP_SERVICE="$(mktemp)"
 sed \
   -e "s|@RUN_USER@|${RUN_USER}|g" \
@@ -331,10 +550,15 @@ sed \
 sudo install -m 0644 -o root -g root "${TEMP_SERVICE}" "${SERVICE_FILE}"
 
 TEMP_ROUTER="$(mktemp)"
-sed \
-  -e "s|@ROUTER_ADDRESS@|${ROUTER_ADDRESS}|g" \
-  -e "s|@ROUTER_PORT@|${ROUTER_PORT}|g" \
-  "${PROJECT_DIR}/config/mavlink-router-ardupilot.conf.in" > "${TEMP_ROUTER}"
+: > "${TEMP_ROUTER}"
+for index in "${!ROUTER_PORTS[@]}"; do
+  sed \
+    -e "s|@ENDPOINT_NAME@|${WINDOW_NAMES[$index]}|g" \
+    -e "s|@ROUTER_ADDRESS@|${ROUTER_ADDRESS}|g" \
+    -e "s|@ROUTER_PORT@|${ROUTER_PORTS[$index]}|g" \
+    "${PROJECT_DIR}/config/mavlink-router-ardupilot.conf.in" >> "${TEMP_ROUTER}"
+  printf '\n' >> "${TEMP_ROUTER}"
+done
 sudo install -m 0644 -o root -g root "${TEMP_ROUTER}" "${ROUTER_ENDPOINT_FILE}"
 
 if [[ ! -f "${ROUTER_DIR}/main.conf" ]]; then
@@ -371,9 +595,14 @@ ArduPilot source:      ${ARDUPILOT_DIR}
 ArduPilot ref:         ${ARDUPILOT_REF}
 Runtime config:        ${CONFIG_FILE}
 Parameter file:        ${PARAM_FILE}
-Router endpoint:       ${ROUTER_ADDRESS}:${ROUTER_PORT}
+Tailscale:             installed; authentication pending
+Maps packages:         ${MAPS_PACKAGES[*]}
+Vehicles:              ${#SYSTEM_IDS[@]}
+Router ports:          ${ROUTER_PORTS[*]}
+System IDs:            ${SYSTEM_IDS[*]}
 
 Next steps:
+  Configure Tailscale manually with: sudo tailscale up
   sudo ardupilot-swarm-install-parameters /path/to/drone.parm
   sudo ardupilot-swarm-configure-gcs GROUND_CONTROLLER_ADDRESS 14550
   sudo systemctl start ardupilot-swarm.service

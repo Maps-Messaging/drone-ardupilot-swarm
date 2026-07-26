@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Changed the default runtime from one ArduPlane SITL instance to three fixed-wing ArduPlane vehicles.
+- Added system IDs `1`, `2`, and `3` using SITL instances `10`, `11`, and `12`.
+- Added local MAVLink Router endpoints on UDP ports `14440`, `14450`, and `14460`.
+- Added separate tmux windows named `usv1`, `usv2`, and `usv3`.
+- Added a managed ArduPilot patch that disables fixed-wing launch throttle suppression while operating in GUIDED mode.
+- Applies the managed patch only while building ArduPlane and restores the upstream checkout afterward.
+- Continues loading the externally supplied `/etc/ardupilot-swarm/drone.parm` file unchanged for every vehicle.
+- Added migration of the previous scalar single-vehicle runtime configuration to the new three-vehicle array format.
+- Added package and validation checks for the patch, fixed-wing frame, system IDs, router ports, and array lengths.
+- Added installation of the official Tailscale package and service while leaving tailnet authentication for manual post-install configuration.
+- Added installation of the latest available `maps`, `maps-apps`, and `maps-drone` packages from the configured APT repository without pinning package versions.
+
 ## 0.2.3
 
 - Added `python3-pip` to the target-host prerequisite installation.
