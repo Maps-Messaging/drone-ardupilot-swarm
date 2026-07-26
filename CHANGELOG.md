@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- Added the managed Maps MAVLink Router endpoint at `127.0.0.1:14550`.
+- Installs `/etc/mavlink-router/config.d/30-maps.conf` from the Debian package and restarts MAVLink Router when it is already active.
+- Updated the swarm start wrapper to detect and use ArduPilot's Python virtual environment on Ubuntu 24.04 and other venv-based installations.
+- Added persistent per-vehicle startup logs under `~/.local/state/ardupilot-swarm`.
+- Added startup verification so systemd fails when any SITL process exits immediately instead of reporting a successful empty tmux session.
+- Preserves dead tmux panes long enough for the wrapper to detect failures and report the recent vehicle log output.
+- Updated package upgrades to refresh the installed start wrapper and ground-controller helper on configured hosts.
+- Removes the managed Maps endpoint and startup logs during uninstall and purge respectively.
+
 ## 0.3.0
 
 - Changed the default runtime from one ArduPlane SITL instance to three fixed-wing ArduPlane vehicles.
