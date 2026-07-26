@@ -69,9 +69,10 @@ Maintainer: ${PACKAGE_MAINTAINER}
 Installed-Size: ${installed_size}
 Depends: ${PACKAGE_DEPENDS}
 Description: ArduPlane SITL swarm host installer
- Installs the management project used to build MAVLink Router and a patched
- ArduPlane SITL binary on the target host, start three fixed-wing vehicles, and
- configure their systemd services. Deployment parameter files remain external.
+ Installs the management project used to install Tailscale and the Maps server, apps, and drone packages; build MAVLink Router
+ and a patched ArduPlane SITL binary on the target host, start three fixed-wing
+ vehicles, and configure their systemd services. Deployment parameters and
+ Tailscale authentication and deployment-specific configuration remain external.
 EOF_CONTROL
 }
 
