@@ -1,0 +1,17 @@
+# Maps Messaging MAVLink protocol interface fragment.
+# Merge this entry into the Maps protocol interface list.
+# MAVLink Router sends the combined swarm stream to localhost UDP port 14550.
+
+- name: "Mavlink Interface"
+  url: udp://0.0.0.0:14550/
+  protocol: mavlink
+  systemId: 250
+  componentId: 194
+  heartbeatIntervalSeconds: 30
+  dialectName: "ardupilot/ardupilotmega"
+  tlogDirectory: "{{MAPS_DATA}}/tlog/"
+  auth: usernamePassword
+  rejectedFrameNamespace: "/mavlink/dlq/{systemId}/{messageName}"
+  topicNameTemplate: "/mavlink/{systemId}/{messageName}"
+  statusTopicNameTemplate: "/mavlink/{systemId}/status"
+  selectorThreadCount: "{processors}/2"
