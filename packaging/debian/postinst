@@ -3,10 +3,13 @@ set -e
 
 PROJECT_ROOT="/usr/share/ardupilot-swarm"
 MAPS_ENDPOINT_SOURCE="${PROJECT_ROOT}/config/mavlink-router-maps.conf"
-MAPS_ENDPOINT_TARGET="/etc/mavlink-router/config.d/30-maps.conf"
+MAPS_ENDPOINT_LEGACY="/etc/mavlink-router/config.d/30-maps.conf"
+MAPS_ENDPOINT_TARGET="/etc/mavlink-router/config.d/50-maps.conf"
+MAPS_INTERFACE_EXAMPLE="${PROJECT_ROOT}/config/maps-mavlink-interface.yaml.example"
 
 if [ "${1:-}" = "configure" ]; then
   install -d -m 0755 /etc/mavlink-router/config.d
+  rm -f "${MAPS_ENDPOINT_LEGACY}"
   install -m 0644 "${MAPS_ENDPOINT_SOURCE}" "${MAPS_ENDPOINT_TARGET}"
 
   if [ -f /etc/ardupilot-swarm/ardupilot-swarm.conf ]; then
@@ -21,7 +24,7 @@ if [ "${1:-}" = "configure" ]; then
     fi
   fi
 
-  cat <<'MESSAGE'
+  cat <<MESSAGE
 ArduPilot swarm management tools are installed.
 
 Run the host installer as the account that will own and run ArduPilot:
@@ -30,7 +33,12 @@ Run the host installer as the account that will own and run ArduPilot:
 
 The package installs the local Maps MAVLink Router endpoint at:
 
-  /etc/mavlink-router/config.d/30-maps.conf
+  ${MAPS_ENDPOINT_TARGET}
+
+Configure one Maps MAVLink protocol interface on UDP port 14550. An example is
+installed at:
+
+  ${MAPS_INTERFACE_EXAMPLE}
 
 Existing host installations also receive the latest swarm startup and ground
 controller helper scripts. Restart ardupilot-swarm.service after upgrading if
