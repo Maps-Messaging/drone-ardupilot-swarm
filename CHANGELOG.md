@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- Standardised the managed Maps MAVLink Router endpoint as `/etc/mavlink-router/config.d/50-maps.conf`.
+- Removes the previous `/etc/mavlink-router/config.d/30-maps.conf` during package upgrades to prevent duplicate `maps` endpoints.
+- Added a Maps Messaging MAVLink interface example listening on `udp://0.0.0.0:14550/`.
+- Documented that a single Maps MAVLink interface receives all three vehicle streams while preserving MAVLink system IDs `1`, `2`, and `3`.
+- Updated validation and uninstall cleanup for both the legacy and current Maps endpoint filenames.
+
 ## 0.3.1
 
 - Added the managed Maps MAVLink Router endpoint at `127.0.0.1:14550`.
