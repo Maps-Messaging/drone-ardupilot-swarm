@@ -13,7 +13,7 @@ PACKAGE_ARCHITECTURE="${PACKAGE_ARCHITECTURE:-all}"
 PACKAGE_MAINTAINER="${PACKAGE_MAINTAINER:-Matthew Buckton <matthew@buckton.org>}"
 PACKAGE_SECTION="${PACKAGE_SECTION:-misc}"
 PACKAGE_PRIORITY="${PACKAGE_PRIORITY:-optional}"
-PACKAGE_DEPENDS="${PACKAGE_DEPENDS:-bash, sudo, systemd, coreutils, sed, grep, openconnect, vpnc-scripts, squid}"
+PACKAGE_DEPENDS="${PACKAGE_DEPENDS:-bash, sudo, systemd, coreutils, sed, grep, iproute2, openconnect, vpnc-scripts, squid}"
 
 log() {
   printf '[ardupilot-swarm-package] %s\n' "$*"
@@ -70,9 +70,9 @@ Installed-Size: ${installed_size}
 Depends: ${PACKAGE_DEPENDS}
 Description: ArduPlane SITL swarm host installer
  Installs the management project used to install Tailscale and the Maps server, apps, and drone packages; build MAVLink Router
- and a patched ArduPlane SITL binary on the target host; install OpenConnect, vpnc scripts, and the Squid HTTP proxy;
- start three fixed-wing vehicles; and configure their systemd services. VPN credentials, proxy policy, deployment parameters,
- Tailscale authentication, and other deployment-specific configuration remain external.
+ and a patched ArduPlane SITL binary on the target host; install OpenConnect, vpnc scripts, and Squid; deploy a restricted
+ Tailscale-only proxy policy for destination 172.16.0.15; start three fixed-wing vehicles; and configure their systemd
+ services. VPN credentials, authentication, deployment parameters, and other secret configuration remain external.
 EOF_CONTROL
 }
 
@@ -99,6 +99,7 @@ install -m 0755 "${ROOT_DIR}/packaging/debian/postinst" "${PACKAGE_ROOT}/DEBIAN/
 install -m 0644 "${ROOT_DIR}/packaging/debian/copyright" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/copyright"
 install -m 0644 "${ROOT_DIR}/packaging/debian/README.Debian" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/README.Debian"
 install -m 0644 "${ROOT_DIR}/docs/mavlink-router.md" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/mavlink-router.md"
+install -m 0644 "${ROOT_DIR}/docs/nato-proxy.md" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/nato-proxy.md"
 install -m 0644 "${ROOT_DIR}/ardupilot-swarm-setup-and-usage.md" "${PACKAGE_ROOT}/usr/share/doc/${PACKAGE_NAME}/setup-and-usage.md"
 
 find "${PACKAGE_ROOT}/usr/share/ardupilot-swarm" -type d -exec chmod 0755 {} +
