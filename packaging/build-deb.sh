@@ -13,7 +13,7 @@ PACKAGE_ARCHITECTURE="${PACKAGE_ARCHITECTURE:-all}"
 PACKAGE_MAINTAINER="${PACKAGE_MAINTAINER:-Matthew Buckton <matthew@buckton.org>}"
 PACKAGE_SECTION="${PACKAGE_SECTION:-misc}"
 PACKAGE_PRIORITY="${PACKAGE_PRIORITY:-optional}"
-PACKAGE_DEPENDS="${PACKAGE_DEPENDS:-bash, sudo, systemd, coreutils, sed, grep}"
+PACKAGE_DEPENDS="${PACKAGE_DEPENDS:-bash, sudo, systemd, coreutils, sed, grep, openconnect, vpnc-scripts, squid}"
 
 log() {
   printf '[ardupilot-swarm-package] %s\n' "$*"
@@ -70,9 +70,9 @@ Installed-Size: ${installed_size}
 Depends: ${PACKAGE_DEPENDS}
 Description: ArduPlane SITL swarm host installer
  Installs the management project used to install Tailscale and the Maps server, apps, and drone packages; build MAVLink Router
- and a patched ArduPlane SITL binary on the target host, start three fixed-wing
- vehicles, and configure their systemd services. Deployment parameters and
- Tailscale authentication and deployment-specific configuration remain external.
+ and a patched ArduPlane SITL binary on the target host; install OpenConnect, vpnc scripts, and the Squid HTTP proxy;
+ start three fixed-wing vehicles; and configure their systemd services. VPN credentials, proxy policy, deployment parameters,
+ Tailscale authentication, and other deployment-specific configuration remain external.
 EOF_CONTROL
 }
 
