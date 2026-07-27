@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.3
+
+- Added a non-interactive sudo preflight to the installed `ardupilot-swarm-install`, `ardupilot-swarm-update`, and `ardupilot-swarm-uninstall` commands.
+- Supports AWS Ubuntu hosts where normal commands are allowed through `NOPASSWD`, but a direct `sudo -v` still requests a password because the user also matches a password-protected sudo rule.
+- Falls back to the normal interactive `sudo -v` prompt on hosts that do not provide passwordless sudo.
+- Added Debian dependencies for `openconnect`, `vpnc-scripts`, and `squid`.
+- Added a managed Squid configuration listening only on `100.87.23.102:3128`.
+- Restricted proxy clients to `100.70.250.58`, `100.112.27.31`, and `100.115.187.97`.
+- Restricted proxy destinations to `172.16.0.15` on HTTP and HTTPS ports; general internet proxying remains denied.
+- Preserves a different pre-existing Squid configuration before installing the managed policy and restores it during uninstall.
+- Leaves OpenConnect gateway details, credentials, certificates, authentication groups, and MFA external to the repository.
+
 ## 0.3.2
 
 - Standardised the managed Maps MAVLink Router endpoint as `/etc/mavlink-router/config.d/50-maps.conf`.
