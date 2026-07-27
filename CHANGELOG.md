@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- Added a non-interactive sudo preflight to the installed `ardupilot-swarm-install` and `ardupilot-swarm-update` commands.
+- Supports AWS Ubuntu hosts where normal commands are allowed through `NOPASSWD`, but a direct `sudo -v` still requests a password because the user also matches a password-protected sudo rule.
+- Falls back to the normal interactive `sudo -v` prompt on hosts that do not provide passwordless sudo.
+
 ## 0.3.2
 
 - Standardised the managed Maps MAVLink Router endpoint as `/etc/mavlink-router/config.d/50-maps.conf`.
