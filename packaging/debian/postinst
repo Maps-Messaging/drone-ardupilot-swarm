@@ -6,11 +6,29 @@ MAPS_ENDPOINT_SOURCE="${PROJECT_ROOT}/config/mavlink-router-maps.conf"
 MAPS_ENDPOINT_LEGACY="/etc/mavlink-router/config.d/30-maps.conf"
 MAPS_ENDPOINT_TARGET="/etc/mavlink-router/config.d/50-maps.conf"
 MAPS_INTERFACE_EXAMPLE="${PROJECT_ROOT}/config/maps-mavlink-interface.yaml.example"
+SQUID_CONFIG_SOURCE="${PROJECT_ROOT}/config/squid-nato-proxy.conf"
+SQUID_CONFIG_TARGET="/etc/squid/squid.conf"
+SQUID_CONFIG_BACKUP="/etc/squid/squid.conf.pre-ardupilot-swarm"
+SQUID_LISTEN_IP="100.87.23.102"
 
 if [ "${1:-}" = "configure" ]; then
   install -d -m 0755 /etc/mavlink-router/config.d
   rm -f "${MAPS_ENDPOINT_LEGACY}"
   install -m 0644 "${MAPS_ENDPOINT_SOURCE}" "${MAPS_ENDPOINT_TARGET}"
+
+  if ! command -v squid >/dev/null 2>&1; then
+    echo "Squid is required but the squid command was not found." >&2
+    exit 1
+  fi
+
+  squid -f "${SQUID_CONFIG_SOURCE}" -k parse
+  install -d -m 0755 /etc/squid
+  if [ -f "${SQUID_CONFIG_TARGET}" ] &&
+     ! cmp -s "${SQUID_CONFIG_SOURCE}" "${SQUID_CONFIG_TARGET}" &&
+     [ ! -e "${SQUID_CONFIG_BACKUP}" ]; then
+    cp -a "${SQUID_CONFIG_TARGET}" "${SQUID_CONFIG_BACKUP}"
+  fi
+  install -m 0644 "${SQUID_CONFIG_SOURCE}" "${SQUID_CONFIG_TARGET}"
 
   if [ -f /etc/ardupilot-swarm/ardupilot-swarm.conf ]; then
     install -m 0755 "${PROJECT_ROOT}/scripts/start-ardupilot-swarm" /usr/local/bin/start-ardupilot-swarm
@@ -21,6 +39,15 @@ if [ "${1:-}" = "configure" ]; then
     systemctl daemon-reload || true
     if systemctl is-active --quiet mavlink-router.service; then
       systemctl restart mavlink-router.service || true
+    fi
+
+    if command -v ip >/dev/null 2>&1 && ip -o address show | grep -q " ${SQUID_LISTEN_IP}/"; then
+      systemctl enable squid.service || true
+      systemctl restart squid.service
+    else
+      systemctl disable --now squid.service >/dev/null 2>&1 || true
+      echo "Squid configuration installed, but ${SQUID_LISTEN_IP} is not present; squid.service remains stopped."
+      echo "Authenticate Tailscale, then run: systemctl enable --now squid.service"
     fi
   fi
 
@@ -39,6 +66,14 @@ Configure one Maps MAVLink protocol interface on UDP port 14550. An example is
 installed at:
 
   ${MAPS_INTERFACE_EXAMPLE}
+
+The restricted Squid proxy configuration is installed at:
+
+  ${SQUID_CONFIG_TARGET}
+
+It listens on ${SQUID_LISTEN_IP}:3128, accepts only the configured Tailscale
+clients, and permits only destination 172.16.0.15 on HTTP or HTTPS ports.
+OpenConnect authentication and VPN routing remain manual.
 
 Existing host installations also receive the latest swarm startup and ground
 controller helper scripts. Restart ardupilot-swarm.service after upgrading if
