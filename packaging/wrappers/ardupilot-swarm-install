@@ -2,4 +2,6 @@
 
 set -euo pipefail
 
+sudo -n true 2>/dev/null || sudo -v
+
 exec /usr/share/ardupilot-swarm/install.sh "$@"
