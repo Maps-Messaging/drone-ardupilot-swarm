@@ -8,6 +8,7 @@ cd "${PROJECT_DIR}"
 PATCH_FILE="patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch"
 MAPS_ROUTER_FILE="config/mavlink-router-maps.conf"
 MAPS_INTERFACE_FILE="config/maps-mavlink-interface.yaml.example"
+SQUID_CONFIG_FILE="config/squid-nato-proxy.conf"
 
 required_files=(
   VERSION
@@ -16,6 +17,7 @@ required_files=(
   CHANGELOG.md
   ardupilot-swarm-setup-and-usage.md
   docs/mavlink-router.md
+  docs/nato-proxy.md
   install.sh
   update.sh
   uninstall.sh
@@ -24,6 +26,7 @@ required_files=(
   config/mavlink-router-ardupilot.conf.in
   "${MAPS_ROUTER_FILE}"
   "${MAPS_INTERFACE_FILE}"
+  "${SQUID_CONFIG_FILE}"
   scripts/start-ardupilot-swarm
   scripts/stop-ardupilot-swarm
   scripts/ardupilot-swarm-configure-gcs
@@ -80,6 +83,23 @@ if grep -qE '(^|, )[[:space:]]*mavlink-router([ ,]|$)' packaging/build-deb.sh; t
   exit 1
 fi
 
+for package in openconnect vpnc-scripts squid; do
+  if ! grep -q "PACKAGE_DEPENDS=.*${package}" packaging/build-deb.sh; then
+    echo "Debian package must depend on ${package}." >&2
+    exit 1
+  fi
+done
+
+for wrapper in \
+  packaging/wrappers/ardupilot-swarm-install \
+  packaging/wrappers/ardupilot-swarm-update \
+  packaging/wrappers/ardupilot-swarm-uninstall; do
+  if ! grep -q '^sudo -n true 2>/dev/null || sudo -v$' "${wrapper}"; then
+    echo "Installed command wrapper must support AWS passwordless sudo: ${wrapper}" >&2
+    exit 1
+  fi
+done
+
 if ! grep -q 'python3-pip' install.sh; then
   echo "Installer must install python3-pip before Python build dependencies." >&2
   exit 1
@@ -117,6 +137,36 @@ fi
 
 if grep -Eq '^[[:space:]]*(sudo[[:space:]]+)?tailscale[[:space:]]+up([[:space:]]|$)' install.sh; then
   echo "Installer must leave Tailscale authentication for manual post-install configuration." >&2
+  exit 1
+fi
+
+if ! grep -q '^http_port 100.87.23.102:3128$' "${SQUID_CONFIG_FILE}" ||
+   ! grep -q '^acl authorised_clients src 100.70.250.58/32$' "${SQUID_CONFIG_FILE}" ||
+   ! grep -q '^acl authorised_clients src 100.112.27.31/32$' "${SQUID_CONFIG_FILE}" ||
+   ! grep -q '^acl authorised_clients src 100.115.187.97/32$' "${SQUID_CONFIG_FILE}" ||
+   ! grep -q '^acl nato_target dst 172.16.0.15/32$' "${SQUID_CONFIG_FILE}" ||
+   ! grep -q '^http_access allow authorised_clients nato_target$' "${SQUID_CONFIG_FILE}" ||
+   ! grep -q '^http_access deny all$' "${SQUID_CONFIG_FILE}"; then
+  echo "Squid configuration must match the restricted deployed NATO proxy policy." >&2
+  exit 1
+fi
+
+if grep -Eq '^acl authorised_clients src 100\.64\.0\.0/10$|^http_access allow all$' "${SQUID_CONFIG_FILE}"; then
+  echo "Squid configuration must not permit the complete tailnet or unrestricted proxy access." >&2
+  exit 1
+fi
+
+if ! grep -q 'squid-nato-proxy.conf' packaging/debian/postinst ||
+   ! grep -q '/etc/squid/squid.conf' packaging/debian/postinst ||
+   ! grep -q '100.87.23.102' packaging/debian/postinst ||
+   ! grep -q 'systemctl restart squid.service' packaging/debian/postinst; then
+  echo "Debian post-install must deploy and activate the restricted Squid policy." >&2
+  exit 1
+fi
+
+if ! grep -q 'squid.conf.pre-ardupilot-swarm' uninstall.sh ||
+   ! grep -q 'systemctl disable --now squid.service' uninstall.sh; then
+  echo "Uninstall must restore or remove the managed Squid configuration safely." >&2
   exit 1
 fi
 
@@ -174,6 +224,11 @@ fi
 
 if ! grep -q 'cp -a "${ROOT_DIR}/patches"' packaging/build-deb.sh; then
   echo "Debian package must include the managed ArduPilot patch directory." >&2
+  exit 1
+fi
+
+if ! grep -q 'docs/nato-proxy.md' packaging/build-deb.sh; then
+  echo "Debian package must include the NATO proxy operating guide." >&2
   exit 1
 fi
 
