@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+- Added `ardupilot-swarm-configure-maps` to configure, inspect, or remove the managed Maps MAVLink Router endpoint.
+- Changed the default Maps endpoint and protocol interface from UDP port `14550` to `14430`, avoiding the three drone input ports `14440`, `14450`, and `14460`.
+- Preserves Maps endpoint configuration written by `ardupilot-swarm-configure-maps` during package upgrades.
+- Updated package installation, validation, uninstall cleanup, and operator documentation for the new helper.
+
 ## 0.3.2
 
 - Standardised the managed Maps MAVLink Router endpoint as `/etc/mavlink-router/config.d/50-maps.conf`.

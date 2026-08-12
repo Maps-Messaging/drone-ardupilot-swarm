@@ -50,20 +50,33 @@ with:
 [UdpEndpoint maps]
 Mode = Normal
 Address = 127.0.0.1
-Port = 14550
+Port = 14430
 ```
 
-MAVLink Router receives the three local streams on ports `14440`, `14450`, and `14460`, combines them, and forwards them to Maps on `127.0.0.1:14550`. The MAVLink system IDs remain `1`, `2`, and `3`.
+MAVLink Router receives the three local streams on ports `14440`, `14450`, and `14460`, combines them, and forwards them to Maps on `127.0.0.1:14430`. The MAVLink system IDs remain `1`, `2`, and `3`.
 
-Package upgrades remove the previous `/etc/mavlink-router/config.d/30-maps.conf` before installing `50-maps.conf`, preventing duplicate `[UdpEndpoint maps]` sections.
+Configure the Maps destination with:
+
+```bash
+sudo ardupilot-swarm-configure-maps 127.0.0.1 14430
+```
+
+Show or remove it with:
+
+```bash
+sudo ardupilot-swarm-configure-maps --show
+sudo ardupilot-swarm-configure-maps --remove
+```
+
+Package upgrades remove the previous `/etc/mavlink-router/config.d/30-maps.conf` before installing `50-maps.conf`, preventing duplicate `[UdpEndpoint maps]` sections. Configuration written by `ardupilot-swarm-configure-maps` is preserved during upgrades.
 
 ## Maps protocol interface
 
-Maps must have one MAVLink protocol interface listening on UDP port `14550`:
+Maps must have one MAVLink protocol interface listening on UDP port `14430`:
 
 ```yaml
 - name: "Mavlink Interface"
-  url: udp://0.0.0.0:14550/
+  url: udp://0.0.0.0:14430/
   protocol: mavlink
   systemId: 250
   componentId: 194
@@ -119,6 +132,11 @@ The swarm installer manages:
 
 ```text
 /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
+```
+
+The Maps helper manages:
+
+```text
 /etc/mavlink-router/config.d/50-maps.conf
 ```
 
@@ -137,14 +155,15 @@ command -v mavlink-routerd
 systemctl cat mavlink-router.service
 sudo cat /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
 sudo cat /etc/mavlink-router/config.d/50-maps.conf
-sudo ss -lunp | grep ':14550'
+sudo ardupilot-swarm-configure-maps --show
+sudo ss -lunp | grep ':14430'
 sudo systemctl restart maps.service
 sudo systemctl restart mavlink-router.service
 sudo systemctl status mavlink-router.service
-sudo tcpdump -ni lo 'udp port 14440 or udp port 14450 or udp port 14460 or udp port 14550'
+sudo tcpdump -ni lo 'udp port 14430 or udp port 14440 or udp port 14450 or udp port 14460'
 ```
 
-The swarm file should contain three `[UdpEndpoint ...]` sections using ports `14440`, `14450`, and `14460`. The Maps file should contain one `Mode = Normal` endpoint targeting `127.0.0.1:14550`.
+The swarm file should contain three `[UdpEndpoint ...]` sections using ports `14440`, `14450`, and `14460`. The Maps file should contain one `Mode = Normal` endpoint targeting `127.0.0.1:14430`.
 
 ## Updating
 

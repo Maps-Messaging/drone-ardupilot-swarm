@@ -162,7 +162,32 @@ sudo ardupilot-swarm-install-parameters /path/to/drone.parm --restart
 
 The start script applies the same file to all three instances with `--add-param-file`. The explicit `--sysid` command-line value remains different for each vehicle.
 
-## 8. Configure the ground controller
+## 8. Configure MAVLink Router
+
+The three drones send MAVLink to MAVLink Router on localhost ports `14440`, `14450`, and `14460`. MAVLink Router forwards the combined stream to Maps and the configured ground controller while preserving MAVLink system IDs `1`, `2`, and `3`.
+
+### Configure Maps
+
+Configure Maps on localhost port `14430`:
+
+```bash
+sudo ardupilot-swarm-configure-maps 127.0.0.1 14430
+```
+
+This creates:
+
+```text
+/etc/mavlink-router/config.d/50-maps.conf
+```
+
+Maps must have one MAVLink UDP listener on port `14430`. Show or remove the router destination with:
+
+```bash
+sudo ardupilot-swarm-configure-maps --show
+sudo ardupilot-swarm-configure-maps --remove
+```
+
+### Configure the ground controller
 
 ```bash
 sudo ardupilot-swarm-configure-gcs 10.140.62.146 14550
@@ -184,6 +209,7 @@ Inspect them:
 
 ```bash
 sudo cat /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
+sudo ardupilot-swarm-configure-maps --show
 sudo ardupilot-swarm-configure-gcs --show
 ```
 
@@ -332,6 +358,7 @@ ardupilot-swarm-install
 dpkg-query -W maps maps-apps maps-drone
 sudo tailscale up
 sudo ardupilot-swarm-install-parameters ~/Downloads/drone.parm
+sudo ardupilot-swarm-configure-maps 127.0.0.1 14430
 sudo ardupilot-swarm-configure-gcs 10.140.62.146 14550
 sudo systemctl enable --now ardupilot-swarm.service
 

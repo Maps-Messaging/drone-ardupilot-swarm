@@ -1,9 +1,9 @@
 # Maps Messaging MAVLink protocol interface fragment.
 # Merge this entry into the Maps protocol interface list.
-# MAVLink Router sends the combined swarm stream to localhost UDP port 14550.
+# MAVLink Router sends the combined swarm stream to localhost UDP port 14430.
 
 - name: "Mavlink Interface"
-  url: udp://0.0.0.0:14550/
+  url: udp://0.0.0.0:14430/
   protocol: mavlink
   systemId: 250
   componentId: 194

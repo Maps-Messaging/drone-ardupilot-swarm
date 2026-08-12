@@ -31,6 +31,7 @@ fi
 "${SUDO[@]}" rm -f /etc/systemd/system/ardupilot-swarm.service
 "${SUDO[@]}" rm -f /usr/local/bin/start-ardupilot-swarm
 "${SUDO[@]}" rm -f /usr/local/bin/stop-ardupilot-swarm
+"${SUDO[@]}" rm -f /usr/local/bin/ardupilot-swarm-configure-maps
 "${SUDO[@]}" rm -f /usr/local/bin/ardupilot-swarm-configure-gcs
 "${SUDO[@]}" rm -f /usr/local/bin/ardupilot-swarm-install-parameters
 "${SUDO[@]}" rm -f /etc/mavlink-router/config.d/20-ardupilot-swarm.conf

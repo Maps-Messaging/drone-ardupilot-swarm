@@ -10,10 +10,13 @@ MAPS_INTERFACE_EXAMPLE="${PROJECT_ROOT}/config/maps-mavlink-interface.yaml.examp
 if [ "${1:-}" = "configure" ]; then
   install -d -m 0755 /etc/mavlink-router/config.d
   rm -f "${MAPS_ENDPOINT_LEGACY}"
-  install -m 0644 "${MAPS_ENDPOINT_SOURCE}" "${MAPS_ENDPOINT_TARGET}"
+  if [ ! -f "${MAPS_ENDPOINT_TARGET}" ] || grep -q '^# Managed by the ardupilot-swarm package\.$' "${MAPS_ENDPOINT_TARGET}"; then
+    install -m 0644 "${MAPS_ENDPOINT_SOURCE}" "${MAPS_ENDPOINT_TARGET}"
+  fi
 
   if [ -f /etc/ardupilot-swarm/ardupilot-swarm.conf ]; then
     install -m 0755 "${PROJECT_ROOT}/scripts/start-ardupilot-swarm" /usr/local/bin/start-ardupilot-swarm
+    install -m 0755 "${PROJECT_ROOT}/scripts/ardupilot-swarm-configure-maps" /usr/local/bin/ardupilot-swarm-configure-maps
     install -m 0755 "${PROJECT_ROOT}/scripts/ardupilot-swarm-configure-gcs" /usr/local/bin/ardupilot-swarm-configure-gcs
   fi
 
@@ -35,14 +38,14 @@ The package installs the local Maps MAVLink Router endpoint at:
 
   ${MAPS_ENDPOINT_TARGET}
 
-Configure one Maps MAVLink protocol interface on UDP port 14550. An example is
+Configure one Maps MAVLink protocol interface on UDP port 14430. An example is
 installed at:
 
   ${MAPS_INTERFACE_EXAMPLE}
 
-Existing host installations also receive the latest swarm startup and ground
-controller helper scripts. Restart ardupilot-swarm.service after upgrading if
-it was already installed and configured.
+Existing host installations also receive the latest swarm startup, Maps, and
+ground-controller helper scripts. Restart ardupilot-swarm.service after
+upgrading if it was already installed and configured.
 MESSAGE
 fi
 
