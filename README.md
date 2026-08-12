@@ -57,7 +57,7 @@ The current routing model is:
 - `usv2` sends MAVLink to `127.0.0.1:14450`
 - `usv3` sends MAVLink to `127.0.0.1:14460`
 - `mavlink-router` listens on those three local UDP server endpoints
-- `mavlink-router` forwards the combined stream to the Maps server on `127.0.0.1:14550`
+- `mavlink-router` forwards the combined stream to the Maps server on `127.0.0.1:14430`
 - a separate manually configured endpoint can forward data to QGroundControl or another controller
 
 The package installs the Maps endpoint as `/etc/mavlink-router/config.d/50-maps.conf`:
@@ -66,7 +66,7 @@ The package installs the Maps endpoint as `/etc/mavlink-router/config.d/50-maps.
 [UdpEndpoint maps]
 Mode = Normal
 Address = 127.0.0.1
-Port = 14550
+Port = 14430
 ```
 
 `Mode = Normal` is used because Maps is the UDP server listening on localhost and MAVLink Router connects and forwards traffic to it.
@@ -74,18 +74,18 @@ Port = 14550
 So:
 
 - ports `14440`, `14450`, and `14460` are **router inputs from the drones**
-- `127.0.0.1:14550` is the **Maps MAVLink destination**
+- `127.0.0.1:14430` is the **Maps MAVLink destination**
 - the remote ground-controller endpoint is **not hard-coded** and is added separately
 
 ## Maps MAVLink interface
 
-Maps needs one MAVLink protocol interface listening on UDP port `14550`. MAVLink Router combines the three input streams but preserves the incoming MAVLink system IDs, so Maps receives vehicles `1`, `2`, and `3` through the same interface.
+Maps needs one MAVLink protocol interface listening on UDP port `14430`. MAVLink Router combines the three input streams but preserves the incoming MAVLink system IDs, so Maps receives vehicles `1`, `2`, and `3` through the same interface.
 
 Use this interface fragment in the Maps configuration:
 
 ```yaml
 - name: "Mavlink Interface"
-  url: udp://0.0.0.0:14550/
+  url: udp://0.0.0.0:14430/
   protocol: mavlink
   systemId: 250
   componentId: 194
@@ -219,7 +219,15 @@ sudo ardupilot-swarm-install-parameters /path/to/drone.parm
 Merge the packaged Maps MAVLink interface example into the Maps protocol interface configuration, then restart Maps:
 
 ```bash
+sudo ardupilot-swarm-configure-maps 127.0.0.1 14430
 sudo systemctl restart maps.service
+```
+
+Show or remove the Maps router destination with:
+
+```bash
+sudo ardupilot-swarm-configure-maps --show
+sudo ardupilot-swarm-configure-maps --remove
 ```
 
 ### 4. Configure any remote MAVLink destination
@@ -262,9 +270,9 @@ Important installed paths:
 | `/etc/ardupilot-swarm/ardupilot-swarm.conf` | runtime configuration |
 | `/etc/ardupilot-swarm/drone.parm` | external ArduPilot parameter file |
 | `/etc/mavlink-router/config.d/20-ardupilot-swarm.conf` | three local router inputs |
-| `/etc/mavlink-router/config.d/50-maps.conf` | Maps destination on `127.0.0.1:14550` |
+| `/etc/mavlink-router/config.d/50-maps.conf` | Maps destination on `127.0.0.1:14430` |
 | `/etc/mavlink-router/config.d/90-ground-controller.conf` | optional remote endpoint |
-| `/usr/share/ardupilot-swarm/config/maps-mavlink-interface.yaml.example` | Maps interface example for UDP port `14550` |
+| `/usr/share/ardupilot-swarm/config/maps-mavlink-interface.yaml.example` | Maps interface example for UDP port `14430` |
 | `~/.local/state/ardupilot-swarm/usv*.log` | persistent SITL startup and runtime logs |
 | `/usr/local/bin/start-ardupilot-swarm` | start wrapper |
 | `/usr/local/bin/stop-ardupilot-swarm` | stop wrapper |

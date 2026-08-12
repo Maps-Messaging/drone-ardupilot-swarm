@@ -32,6 +32,10 @@ The deployment-specific parameter file is not included. Install it separately:
 
   sudo ardupilot-swarm-install-parameters /path/to/drone.parm
 
+Configure the local Maps destination:
+
+  sudo ardupilot-swarm-configure-maps 127.0.0.1 14430
+
 Configure the ground controller when its address is known:
 
   sudo ardupilot-swarm-configure-gcs ADDRESS 14550

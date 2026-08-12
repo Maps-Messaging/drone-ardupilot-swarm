@@ -26,6 +26,7 @@ required_files=(
   "${MAPS_INTERFACE_FILE}"
   scripts/start-ardupilot-swarm
   scripts/stop-ardupilot-swarm
+  scripts/ardupilot-swarm-configure-maps
   scripts/ardupilot-swarm-configure-gcs
   scripts/ardupilot-swarm-install-parameters
   systemd/ardupilot-swarm.service.in
@@ -123,17 +124,24 @@ fi
 if ! grep -q '^\[UdpEndpoint maps\]$' "${MAPS_ROUTER_FILE}" ||
    ! grep -q '^Mode = Normal$' "${MAPS_ROUTER_FILE}" ||
    ! grep -q '^Address = 127.0.0.1$' "${MAPS_ROUTER_FILE}" ||
-   ! grep -q '^Port = 14550$' "${MAPS_ROUTER_FILE}"; then
-  echo "Maps MAVLink Router endpoint must forward to 127.0.0.1:14550." >&2
+   ! grep -q '^Port = 14430$' "${MAPS_ROUTER_FILE}"; then
+  echo "Maps MAVLink Router endpoint must forward to 127.0.0.1:14430." >&2
   exit 1
 fi
 
-if ! grep -q 'url: udp://0.0.0.0:14550/' "${MAPS_INTERFACE_FILE}" ||
+if ! grep -q 'url: udp://0.0.0.0:14430/' "${MAPS_INTERFACE_FILE}" ||
    ! grep -q 'protocol: mavlink' "${MAPS_INTERFACE_FILE}" ||
    ! grep -q 'systemId: 250' "${MAPS_INTERFACE_FILE}" ||
    ! grep -q 'componentId: 194' "${MAPS_INTERFACE_FILE}" ||
    ! grep -q 'dialectName: "ardupilot/ardupilotmega"' "${MAPS_INTERFACE_FILE}"; then
-  echo "Maps interface example must listen for MAVLink on UDP port 14550." >&2
+  echo "Maps interface example must listen for MAVLink on UDP port 14430." >&2
+  exit 1
+fi
+
+if ! grep -q 'PORT="${2:-14430}"' scripts/ardupilot-swarm-configure-maps ||
+   ! grep -q '/etc/mavlink-router/config.d/50-maps.conf' scripts/ardupilot-swarm-configure-maps ||
+   ! grep -q 'ardupilot-swarm-configure-maps' install.sh packaging/debian/postinst uninstall.sh; then
+  echo "Maps endpoint helper must manage 50-maps.conf with default port 14430." >&2
   exit 1
 fi
 

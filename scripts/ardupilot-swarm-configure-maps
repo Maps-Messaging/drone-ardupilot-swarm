@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+MAPS_CONFIG="/etc/mavlink-router/config.d/50-maps.conf"
+LEGACY_MAPS_CONFIG="/etc/mavlink-router/config.d/30-maps.conf"
+ROUTER_SERVICE="mavlink-router.service"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  sudo ardupilot-swarm-configure-maps ADDRESS [PORT]
+  sudo ardupilot-swarm-configure-maps --show
+  sudo ardupilot-swarm-configure-maps --remove
+
+PORT defaults to 14430.
+USAGE
+}
+
+require_root() {
+  if [[ ${EUID} -ne 0 ]]; then
+    echo "This command must be run with sudo." >&2
+    exit 1
+  fi
+}
+
+restart_router() {
+  systemctl restart "${ROUTER_SERVICE}"
+  systemctl --no-pager --full status "${ROUTER_SERVICE}" | sed -n '1,8p'
+}
+
+require_root
+
+case "${1:-}" in
+  --show)
+    if [[ -f "${MAPS_CONFIG}" ]]; then
+      cat "${MAPS_CONFIG}"
+    else
+      echo "Maps is not configured."
+    fi
+    exit 0
+    ;;
+  --remove)
+    rm -f "${LEGACY_MAPS_CONFIG}" "${MAPS_CONFIG}"
+    restart_router
+    echo "Maps endpoint removed."
+    exit 0
+    ;;
+  -h|--help|"")
+    usage
+    exit 0
+    ;;
+esac
+
+ADDRESS="$1"
+PORT="${2:-14430}"
+
+if [[ ! "${ADDRESS}" =~ ^[A-Za-z0-9._:%-]+$ ]]; then
+  echo "Invalid Maps address: ${ADDRESS}" >&2
+  exit 1
+fi
+
+if [[ ! "${PORT}" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
+  echo "Invalid UDP port: ${PORT}" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "${MAPS_CONFIG}")"
+TEMP_FILE="$(mktemp)"
+trap 'rm -f "${TEMP_FILE}"' EXIT
+
+cat > "${TEMP_FILE}" <<EOF_CONFIG
+# Managed by ardupilot-swarm-configure-maps.
+# Maps listens for the combined MAVLink stream.
+
+[UdpEndpoint maps]
+Mode = Normal
+Address = ${ADDRESS}
+Port = ${PORT}
+EOF_CONFIG
+
+rm -f "${LEGACY_MAPS_CONFIG}"
+install -m 0644 -o root -g root "${TEMP_FILE}" "${MAPS_CONFIG}"
+restart_router
+
+echo "Maps configured at ${ADDRESS}:${PORT}."

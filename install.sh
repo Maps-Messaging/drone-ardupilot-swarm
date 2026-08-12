@@ -571,6 +571,7 @@ fi
 
 sudo install -m 0755 -o root -g root "${PROJECT_DIR}/scripts/start-ardupilot-swarm" /usr/local/bin/start-ardupilot-swarm
 sudo install -m 0755 -o root -g root "${PROJECT_DIR}/scripts/stop-ardupilot-swarm" /usr/local/bin/stop-ardupilot-swarm
+sudo install -m 0755 -o root -g root "${PROJECT_DIR}/scripts/ardupilot-swarm-configure-maps" /usr/local/bin/ardupilot-swarm-configure-maps
 sudo install -m 0755 -o root -g root "${PROJECT_DIR}/scripts/ardupilot-swarm-configure-gcs" /usr/local/bin/ardupilot-swarm-configure-gcs
 sudo install -m 0755 -o root -g root "${PROJECT_DIR}/scripts/ardupilot-swarm-install-parameters" /usr/local/bin/ardupilot-swarm-install-parameters
 sudo install -m 0644 -o root -g root "${PROJECT_DIR}/config/ground-controller.conf.example" "${SHARE_DIR}/ground-controller.conf.example"
@@ -604,6 +605,7 @@ System IDs:            ${SYSTEM_IDS[*]}
 Next steps:
   Configure Tailscale manually with: sudo tailscale up
   sudo ardupilot-swarm-install-parameters /path/to/drone.parm
+  sudo ardupilot-swarm-configure-maps 127.0.0.1 14430
   sudo ardupilot-swarm-configure-gcs GROUND_CONTROLLER_ADDRESS 14550
   sudo systemctl start ardupilot-swarm.service
 EOF_SUMMARY
