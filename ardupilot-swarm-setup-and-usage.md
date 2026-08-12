@@ -5,10 +5,10 @@ This guide installs and operates three fixed-wing ArduPlane SITL vehicles using 
 ## 1. Default deployment
 
 | tmux window | SITL instance | MAVLink system ID | Router port |
-|---|---:|---:|---:|
-| `usv1` | 10 | 1 | 14440 |
-| `usv2` | 11 | 2 | 14450 |
-| `usv3` | 12 | 3 | 14460 |
+| ----------- | ------------: | ----------------: | ----------: |
+| `usv1`      |            10 |                 1 |       14440 |
+| `usv2`      |            11 |                 2 |       14450 |
+| `usv3`      |            12 |                 3 |       14460 |
 
 Every vehicle starts as:
 
@@ -22,10 +22,24 @@ The launcher does not select Rover, motorboat, or any other simulation model.
 
 ## 2. Configure the APT repository
 
+The Maps Messaging repository signing key is installed globally at:
+
+```text
+sudo curl -fsSL https://repository.mapsmessaging.io/repository/public_key/daily/apt_daily_key.gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/mapsmessaging-apt.gpg
+
+/etc/apt/trusted.gpg.d/mapsmessaging-apt.gpg
+```
+
+Inspect the installed key and confirm that it contains signing key `7CC22EEB40CC8C4D`:
+
+```bash
+gpg --show-keys --with-subkey-fingerprint /etc/apt/trusted.gpg.d/mapsmessaging-apt.gpg
+```
+
 Create `/etc/apt/sources.list.d/maps-drone.list` containing:
 
 ```text
-deb [signed-by=/usr/share/keyrings/mapsmessaging-archive-keyring.gpg] https://repository.mapsmessaging.io/repository/maps-drone-repo stable main
+deb [arch=all] https://repository.mapsmessaging.io/repository/maps-drone-repo stable main
 ```
 
 Then run:
@@ -34,6 +48,8 @@ Then run:
 sudo apt-get update
 apt-cache policy ardupilot-swarm
 ```
+
+Do not add a `signed-by` option pointing at a different keyring. That would prevent APT from using the globally trusted Maps Messaging key. Do not use `trusted=yes` or disable APT signature verification.
 
 ## 3. Install the package
 
@@ -124,21 +140,7 @@ After authentication, verify the connection with:
 tailscale status
 ```
 
-## 7. Managed GUIDED throttle patch
-
-The patch is stored in the installer package at:
-
-```text
-patches/ardupilot/0001-allow-guided-throttle-before-takeoff.patch
-```
-
-It changes only `Plane::suppress_throttle()` in `ArduPlane/servos.cpp`. In GUIDED mode it clears `throttle_suppressed` and returns without applying the normal fixed-wing launch detection.
-
-This prevents a low-altitude, low-speed virtual vehicle from behaving as though it has landed or has not launched. The patch does not modify the parameter file or select a different vehicle model.
-
-If the selected ArduPilot ref changes enough that the patch no longer applies, the installer stops before building and reports the incompatibility.
-
-## 8. Install the parameter file
+## 7. Install the parameter file
 
 The package deliberately contains no `.parm` file. Install the supplied physical-autopilot parameters unchanged:
 
@@ -160,7 +162,7 @@ sudo ardupilot-swarm-install-parameters /path/to/drone.parm --restart
 
 The start script applies the same file to all three instances with `--add-param-file`. The explicit `--sysid` command-line value remains different for each vehicle.
 
-## 9. Configure the ground controller
+## 8. Configure the ground controller
 
 ```bash
 sudo ardupilot-swarm-configure-gcs 10.140.62.146 14550
@@ -185,7 +187,7 @@ sudo cat /etc/mavlink-router/config.d/20-ardupilot-swarm.conf
 sudo ardupilot-swarm-configure-gcs --show
 ```
 
-## 10. Start the swarm
+## 9. Start the swarm
 
 ```bash
 sudo systemctl start ardupilot-swarm.service
@@ -200,7 +202,7 @@ tmux attach -t ardupilot-swarm
 
 The session contains windows `usv1`, `usv2`, and `usv3`.
 
-## 11. Stop or restart
+## 10. Stop or restart
 
 ```bash
 sudo systemctl stop ardupilot-swarm.service
@@ -209,7 +211,7 @@ sudo systemctl restart ardupilot-swarm.service
 
 Stopping the service kills the complete `ardupilot-swarm` tmux session.
 
-## 12. Runtime configuration
+## 11. Runtime configuration
 
 Edit:
 
@@ -230,7 +232,7 @@ HOME_LONGITUDES=("24.828300" "24.828300" "24.828353")
 
 All arrays must contain the same number of entries. The start script and installer reject incomplete configurations.
 
-## 13. Upgrade from the single-vehicle configuration
+## 12. Upgrade from the single-vehicle configuration
 
 After upgrading the Debian package, run:
 
@@ -246,7 +248,7 @@ A pre-0.3.0 scalar configuration is backed up to:
 
 The installer then appends the default three-vehicle array configuration while preserving the existing user, paths, source refs, router address, parameter path, altitude, heading, and wipe setting.
 
-## 14. Verify operation
+## 13. Verify operation
 
 Check the services and generated configuration:
 
@@ -262,7 +264,27 @@ Confirm the three MAVLink heartbeats report system IDs `1`, `2`, and `3`.
 
 For the GUIDED throttle fix, command a vehicle while it is near home altitude and moving below 5 m/s. It should continue to produce throttle rather than entering fixed-wing launch suppression.
 
-## 15. Troubleshooting
+## 14. Troubleshooting
+
+### APT reports `NO_PUBKEY 7CC22EEB40CC8C4D`
+
+The globally installed Maps Messaging key is missing, unreadable, or the repository source has a `signed-by` option that points somewhere else. Confirm the keyring and source definition:
+
+```bash
+sudo chmod 0644 /etc/apt/trusted.gpg.d/mapsmessaging-apt.gpg
+gpg --show-keys --with-subkey-fingerprint /etc/apt/trusted.gpg.d/mapsmessaging-apt.gpg
+cat /etc/apt/sources.list.d/maps-drone.list
+sudo apt-get update
+apt-cache policy ardupilot-swarm
+```
+
+The source must not contain `signed-by`; it should be:
+
+```text
+deb [arch=all] https://repository.mapsmessaging.io/repository/maps-drone-repo stable main
+```
+
+The `Unable to locate package ardupilot-swarm` error normally follows this signature failure because APT disables the repository and does not download its package index.
 
 ### The managed patch does not apply
 
@@ -299,7 +321,7 @@ tmux attach -t ardupilot-swarm
 
 Select the corresponding `usv1`, `usv2`, or `usv3` window.
 
-## 16. Typical installation
+## 15. Typical installation
 
 ```bash
 sudo apt-get update
